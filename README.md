@@ -76,7 +76,7 @@
 2. 在设置中开启"允许安装未知来源应用"
 3. 打开 APK 进行安装
 4. 授予权限（蓝牙、麦克风）
-5. 在设置中配置 API Key
+5. 在设置中配置 API Key 👉 [查看配置教程](#api-key-config)
 
 ---
 
@@ -111,7 +111,7 @@
 
 **第四步**：在 iPhone 上打开 **设置 → 通用 → VPN与设备管理**，信任开发者证书
 
-**第五步**：打开 TurboMeta，在设置中配置你的阿里云 API Key
+**第五步**：打开 TurboMeta，在设置中配置你的阿里云 API Key 👉 [查看配置教程](#api-key-config)
 
 ## 📖 简介
 
@@ -187,7 +187,7 @@ TurboMeta 是专为 RayBan Meta 智能眼镜打造的全模态AI助手，集成�
 1. **通义千问 Omni-Realtime API**：用于实时对话
 2. **通义千问 VL-Plus API**：用于图像识别和营养分析
 
-👉 [前往阿里云申请 API](https://dashscope.aliyun.com/)
+👉 [前往阿里云百炼申请 API](https://www.aliyun.com/product/bailian) | [百炼控制台](https://bailian.console.aliyun.com/)
 
 ## 🚀 安装指南
 
@@ -203,16 +203,12 @@ TurboMeta 是专为 RayBan Meta 智能眼镜打造的全模态AI助手，集成�
 
 ### 步骤 2：配置 API Key
 
-1. 前往 [阿里云 DashScope](https://dashscope.aliyun.com/)
-2. 登录并创建 API Key
-3. 在项目中打开 `VisionAPIConfig.swift`
-4. 替换你的 API Key：
+详细配置教程请参考 👉 [API Key 配置说明](#api-key-config)
 
-```swift
-struct VisionAPIConfig {
-    static let apiKey = "sk-YOUR-API-KEY-HERE"
-}
-```
+简要步骤：
+1. 前往 [阿里云百炼](https://www.aliyun.com/product/bailian) 注册账号
+2. 登录 [百炼控制台](https://bailian.console.aliyun.com/) → API-KEY 管理 → 创建 API Key
+3. 在 App「设置」→「API Key 管理」中输入你的 API Key
 
 ### 步骤 3：编译项目
 
@@ -478,13 +474,26 @@ DerivedData/
 - 为你的代码部分选择 MIT、Apache 2.0 等许可证
 - 在 LICENSE 文件中注明原始代码来源
 
+<a id="api-key-config"></a>
 ### 5. 用户配置说明
 
-⚠️ **重要提示**：使用本项目的用户需要：
+⚠️ **重要提示**：使用本项目的用户需要配置阿里云 API Key：
 
-1. **申请 API Key**：前往 [阿里云 DashScope](https://dashscope.aliyun.com/) 申请
-2. **配置 API Key**：在 App「设置」→「API Key 管理」输入
-3. **API Key 安全**：存储在 iOS Keychain，不会泄露
+#### 第一步：注册阿里云账号
+前往 [阿里云百炼](https://www.aliyun.com/product/bailian) 注册账号
+
+#### 第二步：获取 API Key
+1. 登录 [百炼控制台](https://bailian.console.aliyun.com/)
+2. 在左侧菜单找到「**API-KEY 管理**」
+3. 点击「**创建 API Key**」生成密钥
+4. 复制生成的 API Key
+
+#### 第三步：在 App 中配置
+1. 打开 TurboMeta App
+2. 进入「**设置**」→「**API Key 管理**」
+3. 粘贴你的 API Key 并保存
+
+> 🔒 **安全说明**：API Key 在 iOS 上存储于 Keychain，在 Android 上使用 EncryptedSharedPreferences 加密存储，不会泄露
 
 ## 🌟 如果这个项目对你有帮助
 
