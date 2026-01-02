@@ -314,7 +314,7 @@ class OpenAIRealtimeService(
         Log.e(TAG, "Error in manual vision request: ${e.message}")
       }
     }
-            ?: Log.w(TAG, "No video frame available for vision analysis")
+    ?: Log.w(TAG, "No video frame available for vision analysis")
   }
 
   private fun sendAudioData(audioData: ByteArray) {
@@ -371,63 +371,61 @@ class OpenAIRealtimeService(
                         .post(requestBody)
                         .build()
 
-        Log.d(TAG, "Sending vision API request, ${bytes.size} bytes")
+        client.newCall(request).enqueue(
+          object : Callback {
+            override fun onFailure(call: Call, e: java.io.IOException) {
+              Log.e(TAG, "✗ Vision API call FAILED: ${e.message}", e)
+            }
 
-        client.newCall(request)
-                .enqueue(
-                        object : Callback {
-                          override fun onFailure(call: Call, e: java.io.IOException) {
-                            Log.e(TAG, "Vision API call failed: ${e.message}")
-                          }
+            override fun onResponse(call: Call, response: Response) {
+              response.use {
+                if (!it.isSuccessful) {
+                  val errorBody = it.body?.string()
+                  Log.e(TAG, "✗ Vision API error: ${it.code} $errorBody")
+                  return
+                }
 
-                          override fun onResponse(call: Call, response: Response) {
-                            response.use {
-                              if (!it.isSuccessful) {
-                                Log.e(TAG, "Vision API error: ${it.code} ${it.body?.string()}")
-                                return
-                              }
+                val responseBody = it.body?.string() ?: return
+                
+                val json = gson.fromJson(responseBody, JsonObject::class.java)
+                val description =
+                        json.getAsJsonArray("choices")
+                                ?.get(0)
+                                ?.asJsonObject
+                                ?.getAsJsonObject("message")
+                                ?.get("content")
+                                ?.asString
+                                ?: "Unable to analyze image"
 
-                              val responseBody = it.body?.string() ?: return
-                              val json = gson.fromJson(responseBody, JsonObject::class.java)
-                              val description =
-                                      json.getAsJsonArray("choices")
-                                              ?.get(0)
-                                              ?.asJsonObject
-                                              ?.getAsJsonObject("message")
-                                              ?.get("content")
-                                              ?.asString
-                                              ?: "Unable to analyze image"
+                Log.d(TAG, "✓ Vision description extracted: $description")
 
-                              Log.d(TAG, "Vision description: $description")
-
-                              // Inject vision description as text into Realtime conversation
-                              val textMessage =
-                                      mapOf(
-                                              "type" to "conversation.item.create",
-                                              "item" to
-                                                      mapOf(
-                                                              "type" to "message",
-                                                              "role" to "user",
-                                                              "content" to
-                                                                      listOf(
-                                                                              mapOf(
-                                                                                      "type" to
-                                                                                              "input_text",
-                                                                                      "text" to
-                                                                                              "[Visual context: $description]"
-                                                                              )
-                                                                      )
-                                                      )
-                                      )
-                              val messageJson = gson.toJson(textMessage)
-                              webSocket?.send(messageJson)
-                              Log.d(TAG, "Visual context injected into conversation")
-                            }
-                          }
-                        }
-                )
+                // Inject vision description as text into Realtime conversation
+                val textMessage =
+                  mapOf(
+                    "type" to "conversation.item.create",
+                    "item" to
+                      mapOf(
+                        "type" to "message",
+                        "role" to "user",
+                        "content" to
+                          listOf(
+                            mapOf(
+                              "type" to "input_text",
+                              "text" to "[Visual context: $description]"
+                            )
+                          )
+                      )
+                  )
+                val messageJson = gson.toJson(textMessage)
+                Log.d(TAG, "✓ Sending visual context to conversation: ${messageJson.take(150)}...")
+                webSocket?.send(messageJson)
+                Log.d(TAG, "✓ Visual context successfully injected into conversation")
+              }
+            }
+          }
+        )
       } catch (e: Exception) {
-        Log.e(TAG, "Error processing image: ${e.message}")
+        Log.e(TAG, "✗ Error processing image: ${e.message}", e)
       }
     }
   }
@@ -509,15 +507,23 @@ class OpenAIRealtimeService(
                   )
 
           val transcriptLower = transcript.lowercase()
-          if (visionKeywords.any { transcriptLower.contains(it) }) {
-            Log.d(TAG, "Vision question detected, sending current frame")
-            pendingImageFrame?.let {
+          Log.d(TAG, "Checking transcript for vision keywords: '$transcriptLower'")
+          val matchedKeyword = visionKeywords.find { transcriptLower.contains(it) }
+          if (matchedKeyword != null) {
+            Log.d(TAG, "✓ Vision question detected! Matched keyword: '$matchedKeyword'")
+            if (pendingImageFrame != null) {
+              Log.d(TAG, "✓ Image frame available, sending to Vision API...")
               try {
-                sendImageInput(it)
+                sendImageInput(pendingImageFrame!!)
+                Log.d(TAG, "✓ Vision API call initiated successfully")
               } catch (e: Exception) {
-                Log.e(TAG, "Error sending vision frame: ${e.message}")
+                Log.e(TAG, "✗ Error sending vision frame: ${e.message}", e)
               }
+            } else {
+              Log.w(TAG, "✗ No image frame available for vision analysis")
             }
+          } else {
+            Log.d(TAG, "✗ No vision keywords matched in transcript")
           }
         }
         // OpenAI audio output streaming

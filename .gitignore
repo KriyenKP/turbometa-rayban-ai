@@ -39,3 +39,5 @@ android/app/build/
 android/.kotlin/
 android/local.properties
 *.apk
+android/gradlew.bat
+.github/copilot-instructions.md
