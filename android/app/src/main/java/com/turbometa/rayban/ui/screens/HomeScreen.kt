@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -24,18 +25,22 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.types.Permission
 import com.meta.wearable.dat.core.types.PermissionStatus
 import com.turbometa.rayban.R
 import com.turbometa.rayban.ui.theme.*
+import com.turbometa.rayban.utils.AIProvider
 import com.turbometa.rayban.utils.APIKeyManager
 import com.turbometa.rayban.viewmodels.WearablesViewModel
 import kotlinx.coroutines.launch
@@ -59,6 +64,10 @@ fun HomeScreen(
 
     // API Key dialog state
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var selectedProvider by remember { mutableStateOf<AIProvider?>(null) }
+    var apiKeyInput by remember { mutableStateOf("") }
+    var customUrlInput by remember { mutableStateOf("") }
+    var showApiKeyPassword by remember { mutableStateOf(false) }
     // Device not connected dialog state
     var showDeviceNotConnectedDialog by remember { mutableStateOf(false) }
     // Camera permission denied dialog state
@@ -99,7 +108,12 @@ fun HomeScreen(
     // API Key configuration dialog
     if (showApiKeyDialog) {
         AlertDialog(
-            onDismissRequest = { showApiKeyDialog = false },
+            onDismissRequest = { 
+                showApiKeyDialog = false
+                selectedProvider = null
+                apiKeyInput = ""
+                customUrlInput = ""
+            },
             icon = {
                 Icon(
                     imageVector = Icons.Default.Key,
@@ -109,40 +123,179 @@ fun HomeScreen(
             },
             title = {
                 Text(
-                    text = "需要配置 API Key",
+                    text = stringResource(R.string.api_key_config_title),
                     fontWeight = FontWeight.SemiBold
                 )
             },
             text = {
-                Column {
-                    Text("使用 Live AI 功能需要先配置阿里云 API Key。")
-                    Spacer(modifier = Modifier.height(AppSpacing.small))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(stringResource(R.string.api_key_config_message))
+                    
+                    Spacer(modifier = Modifier.height(AppSpacing.medium))
+                    
+                    // Provider Selection
                     Text(
-                        text = "请前往阿里云百炼控制台获取 API Key，然后在设置中配置。",
-                        color = TextSecondaryLight,
+                        text = stringResource(R.string.select_provider),
+                        fontWeight = FontWeight.Medium,
                         fontSize = 14.sp
                     )
+                    
+                    Spacer(modifier = Modifier.height(AppSpacing.small))
+                    
+                    // Alibaba Cloud
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) { selectedProvider = AIProvider.ALIBABA_CLOUD }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedProvider == AIProvider.ALIBABA_CLOUD,
+                            onClick = { selectedProvider = AIProvider.ALIBABA_CLOUD }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(AIProvider.ALIBABA_CLOUD.getDisplayName(context))
+                    }
+                    
+                    // OpenAI
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) { selectedProvider = AIProvider.OPENAI }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedProvider == AIProvider.OPENAI,
+                            onClick = { selectedProvider = AIProvider.OPENAI }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(AIProvider.OPENAI.getDisplayName(context))
+                    }
+                    
+                    // Custom
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) { selectedProvider = AIProvider.CUSTOM }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = selectedProvider == AIProvider.CUSTOM,
+                            onClick = { selectedProvider = AIProvider.CUSTOM }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(AIProvider.CUSTOM.getDisplayName(context))
+                    }
+                    
+                    // Show input fields if provider is selected
+                    selectedProvider?.let { provider ->
+                        Spacer(modifier = Modifier.height(AppSpacing.medium))
+                        
+                        // Custom URL input (only for CUSTOM provider)
+                        if (provider == AIProvider.CUSTOM) {
+                            OutlinedTextField(
+                                value = customUrlInput,
+                                onValueChange = { customUrlInput = it },
+                                label = { Text(stringResource(R.string.api_base_url)) },
+                                placeholder = { Text(stringResource(R.string.api_base_url_placeholder)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(AppSpacing.small))
+                        }
+                        
+                        // API Key input
+                        OutlinedTextField(
+                            value = apiKeyInput,
+                            onValueChange = { apiKeyInput = it },
+                            label = { Text(stringResource(R.string.api_key)) },
+                            placeholder = { 
+                                Text(
+                                    when (provider) {
+                                        AIProvider.ALIBABA_CLOUD -> stringResource(R.string.enter_alibaba_key)
+                                        AIProvider.OPENAI -> stringResource(R.string.enter_openai_key)
+                                        AIProvider.CUSTOM -> stringResource(R.string.enter_custom_key)
+                                    }
+                                )
+                            },
+                            visualTransformation = if (showApiKeyPassword) 
+                                VisualTransformation.None 
+                            else 
+                                PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { showApiKeyPassword = !showApiKeyPassword }) {
+                                    Icon(
+                                        imageVector = if (showApiKeyPassword) 
+                                            Icons.Default.Visibility 
+                                        else 
+                                            Icons.Default.VisibilityOff,
+                                        contentDescription = if (showApiKeyPassword) 
+                                            "Hide API Key" 
+                                        else 
+                                            "Show API Key"
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        showApiKeyDialog = false
-                        uriHandler.openUri("https://bailian.console.aliyun.com/?apiKey=1")
+                        selectedProvider?.let { provider ->
+                            if (apiKeyInput.isNotBlank()) {
+                                // Save API key
+                                apiKeyManager.saveAPIKey(provider, apiKeyInput.trim())
+                                // Set as selected provider
+                                apiKeyManager.setSelectedProvider(provider)
+                                // Save custom URL if CUSTOM provider
+                                if (provider == AIProvider.CUSTOM && customUrlInput.isNotBlank()) {
+                                    apiKeyManager.saveCustomRestEndpoint(customUrlInput.trim())
+                                }
+                                // Close dialog
+                                showApiKeyDialog = false
+                                selectedProvider = null
+                                apiKeyInput = ""
+                                customUrlInput = ""
+                            }
+                        }
                     },
+                    enabled = selectedProvider != null && apiKeyInput.isNotBlank() &&
+                              (selectedProvider != AIProvider.CUSTOM || customUrlInput.isNotBlank()),
                     colors = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) {
-                    Text("获取 API Key")
+                    Text(stringResource(R.string.save))
                 }
             },
             dismissButton = {
                 TextButton(
                     onClick = {
                         showApiKeyDialog = false
-                        onNavigateToSettings()
+                        selectedProvider = null
+                        apiKeyInput = ""
+                        customUrlInput = ""
                     }
                 ) {
-                    Text("去设置")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -161,12 +314,12 @@ fun HomeScreen(
             },
             title = {
                 Text(
-                    text = "需要连接设备",
+                    text = stringResource(R.string.device_connection_required),
                     fontWeight = FontWeight.SemiBold
                 )
             },
             text = {
-                Text("请先连接 Ray-Ban Meta 眼镜后再使用此功能。")
+                Text(stringResource(R.string.device_connection_message))
             },
             confirmButton = {
                 Button(
@@ -176,7 +329,7 @@ fun HomeScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) {
-                    Text("连接设备")
+                    Text(stringResource(R.string.connect_device))
                 }
             },
             dismissButton = {
@@ -292,9 +445,9 @@ fun HomeScreen(
                                 showDeviceNotConnectedDialog = true
                                 return@FeatureCard
                             }
-                            // Then check API key
-                            val apiKey = apiKeyManager.getAPIKey()
-                            if (apiKey.isNullOrBlank()) {
+                            // Then check API key for selected provider
+                            val selectedProvider = apiKeyManager.getSelectedProvider()
+                            if (!apiKeyManager.hasAPIKey(selectedProvider)) {
                                 showApiKeyDialog = true
                                 return@FeatureCard
                             }

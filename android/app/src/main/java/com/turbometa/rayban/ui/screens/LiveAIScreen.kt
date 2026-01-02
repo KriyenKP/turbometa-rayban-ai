@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +59,8 @@ fun LiveAIScreen(
     val isConnected by viewModel.isConnected.collectAsState()
     val isRecording by viewModel.isRecording.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
+    val debugMessages by viewModel.debugMessages.collectAsState()
+    val showDebugOverlay by viewModel.showDebugOverlay.collectAsState()
 
     // Wearables state
     val currentFrame by wearablesViewModel.currentFrame.collectAsState()
@@ -168,6 +171,14 @@ fun LiveAIScreen(
                         }
                     },
                     actions = {
+                        // Debug toggle button
+                        IconButton(onClick = { viewModel.toggleDebugOverlay() }) {
+                            Icon(
+                                if (showDebugOverlay) Icons.Default.BugReport else Icons.Default.Code,
+                                contentDescription = "Debug",
+                                tint = if (showDebugOverlay) Success else Color.White.copy(alpha = 0.7f)
+                            )
+                        }
                         // Stream status indicator
                         if (streamState is WearablesViewModel.StreamState.Streaming) {
                             Icon(
@@ -253,6 +264,15 @@ fun LiveAIScreen(
                     onDisconnect = { viewModel.disconnect() },
                     onStartRecording = { viewModel.startRecording() },
                     onStopRecording = { viewModel.stopRecording() }
+                )
+            }
+
+            // Debug overlay
+            if (showDebugOverlay) {
+                DebugOverlay(
+                    messages = debugMessages,
+                    onClose = { viewModel.toggleDebugOverlay() },
+                    onClear = { viewModel.clearDebugMessages() }
                 )
             }
         }
@@ -605,5 +625,161 @@ private fun getInstructionText(
         state == OmniRealtimeViewModel.ViewState.Processing -> stringResource(R.string.processing_response)
         state == OmniRealtimeViewModel.ViewState.Speaking -> stringResource(R.string.ai_speaking)
         else -> stringResource(R.string.tap_to_speak)
+    }
+}
+
+@Composable
+private fun DebugOverlay(
+    messages: List<String>,
+    onClose: () -> Unit,
+    onClear: () -> Unit
+) {
+    val listState = rememberLazyListState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    var showCopiedMessage by remember { mutableStateOf(false) }
+
+    // Auto-scroll to bottom when new messages arrive
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
+    }
+
+    // Show "Copied!" message temporarily
+    LaunchedEffect(showCopiedMessage) {
+        if (showCopiedMessage) {
+            kotlinx.coroutines.delay(2000)
+            showCopiedMessage = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(AppSpacing.medium),
+        contentAlignment = Alignment.BottomEnd
+    ) {
+        Surface(
+            modifier = Modifier
+                .width(400.dp)
+                .height(500.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = Color.Black.copy(alpha = 0.9f),
+            tonalElevation = 8.dp,
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Primary.copy(alpha = 0.2f))
+                        .padding(AppSpacing.small),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (showCopiedMessage) "✓ Copied!" else "WebSocket Debug",
+                        color = if (showCopiedMessage) Success else Color.White,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.extraSmall)
+                    ) {
+                        // Copy button
+                        IconButton(
+                            onClick = {
+                                val clipData = android.content.ClipData.newPlainText(
+                                    "Debug Log",
+                                    messages.joinToString("\n")
+                                )
+                                clipboardManager.setPrimaryClip(clipData)
+                                showCopiedMessage = true
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy messages",
+                                tint = if (showCopiedMessage) Success else Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        // Clear button
+                        IconButton(
+                            onClick = onClear,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Clear messages",
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        // Close button
+                        IconButton(
+                            onClick = onClose,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close debug overlay",
+                                tint = Color.White.copy(alpha = 0.7f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                // Messages list
+                if (messages.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(AppSpacing.medium),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No messages yet...",
+                            color = Color.White.copy(alpha = 0.5f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(AppSpacing.small),
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(messages) { message ->
+                            Text(
+                                text = message,
+                                color = when {
+                                    message.contains("📤") -> Color.Cyan
+                                    message.contains("📥") -> Color.Green
+                                    message.contains("❌") || message.contains("ERROR") -> Color.Red
+                                    message.contains("⚠️") || message.contains("WARNING") -> Color.Yellow
+                                    else -> Color.White
+                                },
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

@@ -65,10 +65,8 @@ class VisionViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun initializeService() {
-        val apiKey = apiKeyManager.getAPIKey()
-        if (!apiKey.isNullOrBlank()) {
-            visionService = VisionAPIService(apiKey)
-        }
+        // Service now takes Context, initialize on demand
+        visionService = VisionAPIService(getApplication())
     }
 
     fun setCapturedImage(bitmap: Bitmap) {
@@ -89,13 +87,7 @@ class VisionViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         if (visionService == null) {
-            val apiKey = apiKeyManager.getAPIKey()
-            if (apiKey.isNullOrBlank()) {
-                _errorMessage.value = "API Key not configured"
-                _viewState.value = ViewState.Error("API Key not configured")
-                return
-            }
-            visionService = VisionAPIService(apiKey)
+            visionService = VisionAPIService(getApplication())
         }
 
         val analysisPrompt = prompt ?: _customPrompt.value.ifBlank { DEFAULT_PROMPTS[0] }

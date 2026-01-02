@@ -1,11 +1,14 @@
 package com.turbometa.rayban.services
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.turbometa.rayban.R
 import com.turbometa.rayban.models.FoodItem
 import com.turbometa.rayban.models.FoodNutritionResponse
+import com.turbometa.rayban.utils.AIProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -15,12 +18,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
-class LeanEatService(private val apiKey: String) {
+class LeanEatService(
+    private val context: Context,
+    private val provider: AIProvider? = null
+) {
 
     companion object {
-        private const val BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-        private const val MODEL = "qwen-vl-plus"
-
         private val NUTRITION_PROMPT = """
 请分析这张图片中的食物，并以JSON格式返回营养分析结果。
 
@@ -67,11 +70,19 @@ class LeanEatService(private val apiKey: String) {
 
     suspend fun analyzeFood(image: Bitmap): Result<FoodNutritionResponse> = withContext(Dispatchers.IO) {
         try {
+            // Resolve provider configuration
+            val (selectedProvider, config) = AIProviderConfig.resolveProvider(context, provider)
+            val apiKey = AIProviderConfig.getAPIKey(context, selectedProvider)
+                ?: return@withContext Result.failure(Exception(
+                    context.getString(R.string.error_api_key_not_configured, selectedProvider.id)
+                ))
+            
             val base64Image = encodeImageToBase64(image)
-            val requestBody = buildRequestBody(base64Image)
+            val requestBody = buildRequestBody(base64Image, config.visionModel)
+            val url = "${config.restBaseUrl}/chat/completions"
 
             val request = Request.Builder()
-                .url(BASE_URL)
+                .url(url)
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
@@ -81,16 +92,22 @@ class LeanEatService(private val apiKey: String) {
             val responseBody = response.body?.string()
 
             if (!response.isSuccessful) {
-                return@withContext Result.failure(Exception("API Error: ${response.code} - $responseBody"))
+                return@withContext Result.failure(Exception(
+                    context.getString(R.string.error_api_error, response.code, responseBody)
+                ))
             }
 
             if (responseBody.isNullOrEmpty()) {
-                return@withContext Result.failure(Exception("Empty response from API"))
+                return@withContext Result.failure(Exception(
+                    context.getString(R.string.error_empty_response)
+                ))
             }
 
             val nutritionResponse = parseNutritionResponse(responseBody)
             if (nutritionResponse == null) {
-                return@withContext Result.failure(Exception("Failed to parse nutrition data"))
+                return@withContext Result.failure(Exception(
+                    context.getString(R.string.error_parse_nutrition)
+                ))
             }
 
             Result.success(nutritionResponse)
@@ -106,7 +123,7 @@ class LeanEatService(private val apiKey: String) {
         return Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
 
-    private fun buildRequestBody(base64Image: String): String {
+    private fun buildRequestBody(base64Image: String, model: String): String {
         val messages = listOf(
             mapOf(
                 "role" to "user",
@@ -126,7 +143,7 @@ class LeanEatService(private val apiKey: String) {
         )
 
         val request = mapOf(
-            "model" to MODEL,
+            "model" to model,
             "messages" to messages,
             "max_tokens" to 2000
         )

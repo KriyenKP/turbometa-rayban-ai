@@ -1,5 +1,6 @@
 package com.turbometa.rayban.services
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -10,6 +11,8 @@ import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.turbometa.rayban.R
+import com.turbometa.rayban.utils.AIProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,13 +23,14 @@ import java.nio.ByteOrder
 import java.util.concurrent.TimeUnit
 
 class OmniRealtimeService(
+    private val context: Context,
     private val apiKey: String,
-    private val model: String = "qwen3-omni-flash-realtime",
+    private val providerConfig: ProviderEndpoints,
+    private val provider: AIProvider,
     private val outputLanguage: String = "zh-CN"
 ) {
     companion object {
         private const val TAG = "OmniRealtimeService"
-        private const val WS_BASE_URL = "wss://dashscope.aliyuncs.com/api-ws/v1/realtime"
         private const val SAMPLE_RATE = 24000
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
@@ -55,6 +59,7 @@ class OmniRealtimeService(
     var onSpeechStarted: (() -> Unit)? = null
     var onSpeechStopped: (() -> Unit)? = null
     var onError: ((String) -> Unit)? = null
+    var onDebugMessage: ((String) -> Unit)? = null  // New debug callback
 
     // Internal
     private var webSocket: WebSocket? = null
@@ -68,6 +73,10 @@ class OmniRealtimeService(
 
     private var isFirstAudioSent = false
     private var pendingImageFrame: Bitmap? = null
+    
+    // Provider detection
+    private val isOpenAI: Boolean
+        get() = providerConfig.wsBaseUrl.contains("openai", ignoreCase = true)
 
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -76,7 +85,7 @@ class OmniRealtimeService(
     fun connect() {
         if (_isConnected.value) return
 
-        val url = "$WS_BASE_URL?model=$model"
+        val url = "${providerConfig.wsBaseUrl}?model=${providerConfig.realtimeModel}"
         val request = Request.Builder()
             .url(url)
             .addHeader("Authorization", "Bearer $apiKey")
@@ -90,6 +99,14 @@ class OmniRealtimeService(
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                Log.d(TAG, "WebSocket message received: $text")
+                // Show more for error/failed messages, less for normal messages
+                val debugText = if (text.contains("\"error\"") || text.contains("\"failed\"")) {
+                    text.take(800) // Show more for errors
+                } else {
+                    text.take(300) // Show more for normal messages too
+                }
+                onDebugMessage?.invoke("📥 RCV: $debugText")
                 handleMessage(text)
             }
 
@@ -97,7 +114,7 @@ class OmniRealtimeService(
                 Log.e(TAG, "WebSocket error: ${t.message}")
                 _isConnected.value = false
                 _errorMessage.value = t.message
-                onError?.invoke(t.message ?: "Connection failed")
+                onError?.invoke(t.message ?: context.getString(R.string.error_connection_failed))
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -151,7 +168,7 @@ class OmniRealtimeService(
             }
         } catch (e: SecurityException) {
             Log.e(TAG, "Microphone permission denied")
-            _errorMessage.value = "Microphone permission denied"
+            _errorMessage.value = context.getString(R.string.error_microphone_permission)
         } catch (e: Exception) {
             Log.e(TAG, "Error starting recording: ${e.message}")
             _errorMessage.value = e.message
@@ -181,28 +198,82 @@ class OmniRealtimeService(
             else -> "请用简洁的中文回答，保持口语化和自然的对话风格。"
         }
 
-        val sessionConfig = mapOf(
-            "type" to "session.update",
-            "session" to mapOf(
-                "modalities" to listOf("text", "audio"),
-                "voice" to "Cherry",
-                "input_audio_format" to "pcm16",
-                "output_audio_format" to "pcm16",  // PCM16 works better with Android AudioTrack
-                "smooth_output" to true,
-                "instructions" to """
-                    你是RayBan Meta智能眼镜AI助手。$languageInstruction
-                    回答要简练，通常在1-3句话内完成。
-                    如果用户询问你看到了什么，请描述视觉画面中的内容。
-                """.trimIndent(),
-                "turn_detection" to mapOf(
-                    "type" to "server_vad",
-                    "threshold" to 0.5,
-                    "silence_duration_ms" to 800
+        val systemPrompt = when (outputLanguage) {
+            "zh-CN" -> "你是RayBan Meta智能眼镜AI助手。$languageInstruction 回答要简练，通常在1-3句话内完成。如果用户询问你看到了什么，请描述视觉画面中的内容。"
+            "en-US" -> "You are the RayBan Meta smart glasses AI assistant. $languageInstruction Keep answers concise, typically 1-3 sentences. If the user asks what you see, describe the visual content."
+            "ja-JP" -> "RayBan Metaスマートグラスのアシスタントです。$languageInstruction 回答は簡潔に、通常1〜3文で。ユーザーが何が見えるか尋ねたら、視覚的な内容を説明してください。"
+            "ko-KR" -> "RayBan Meta 스마트 안경 AI 어시스턴트입니다. $languageInstruction 답변은 간결하게, 보통 1-3문장으로. 사용자가 무엇이 보이는지 물으면 시각적 내용을 설명하세요."
+            "es-ES" -> "Eres el asistente de IA de las gafas inteligentes RayBan Meta. $languageInstruction Mantén las respuestas concisas, típicamente de 1-3 frases. Si el usuario pregunta qué ves, describe el contenido visual."
+            "fr-FR" -> "Vous êtes l'assistant IA des lunettes intelligentes RayBan Meta. $languageInstruction Gardez les réponses concises, généralement 1-3 phrases. Si l'utilisateur demande ce que vous voyez, décrivez le contenu visuel."
+            else -> "你是RayBan Meta智能眼镜AI助手。$languageInstruction 回答要简练，通常在1-3句话内完成。如果用户询问你看到了什么，请描述视觉画面中的内容。"
+        }
+
+        // Build session configuration based on provider
+        val sessionMap = mutableMapOf<String, Any>()
+
+        // OpenAI Realtime API format
+        if (isOpenAI) {
+            sessionMap["type"] = "realtime"
+            sessionMap["model"] = providerConfig.realtimeModel
+            sessionMap["output_modalities"] = listOf("audio")
+            sessionMap["instructions"] = systemPrompt
+            sessionMap["audio"] = mapOf(
+                "input" to mapOf(
+                    "format" to mapOf(
+                        "type" to "audio/pcm",
+                        "rate" to 24000
+                    ),
+                    "turn_detection" to mapOf(
+                        "type" to "server_vad",
+                        "threshold" to 0.5,
+                        "prefix_padding_ms" to 300,
+                        "silence_duration_ms" to 500
+                    )
+                ),
+                "output" to mapOf(
+                    "format" to mapOf(
+                        "type" to "audio/pcm",
+                        "rate" to 24000
+                    ),
+                    "voice" to providerConfig.voice
                 )
             )
+        } else {
+            // Alibaba Cloud format
+            sessionMap["modalities"] = listOf("text", "audio")
+            sessionMap["voice"] = providerConfig.voice
+            sessionMap["instructions"] = systemPrompt
+            sessionMap["input_audio_format"] = "pcm16"
+            sessionMap["output_audio_format"] = "pcm16"
+            sessionMap["smooth_output"] = true
+            sessionMap["turn_detection"] = mapOf(
+                "type" to "server_vad",
+                "threshold" to 0.5,
+                "silence_duration_ms" to 800
+            )
+        }
+
+        val sessionConfig = mapOf(
+            "type" to "session.update",
+            "session" to sessionMap
         )
 
         val json = gson.toJson(sessionConfig)
+        Log.d(TAG, "Sending session config: $json")
+        onDebugMessage?.invoke("📤 SEND: session.update")
+        webSocket?.send(json)
+    }
+
+    private fun createResponse() {
+        if (!_isConnected.value) return
+
+        val responseConfig = mapOf(
+            "type" to "response.create"
+        )
+
+        val json = gson.toJson(responseConfig)
+        Log.d(TAG, "Requesting response creation: $json")
+        onDebugMessage?.invoke("📤 SEND: response.create")
         webSocket?.send(json)
     }
 
@@ -216,6 +287,7 @@ class OmniRealtimeService(
         )
 
         webSocket?.send(gson.toJson(message))
+        Log.v(TAG, "Sent audio data: ${audioData.size} bytes")
 
         // Send image on first audio if available
         if (!isFirstAudioSent && pendingImageFrame != null) {
@@ -226,6 +298,48 @@ class OmniRealtimeService(
 
     private fun sendImageFrame(bitmap: Bitmap) {
         try {
+            if (isOpenAI) {
+                // For OpenAI, analyze image with vision API and inject as context
+                scope.launch {
+                    try {
+                        Log.d(TAG, "Analyzing image with GPT-4 Vision for OpenAI Realtime context")
+                        onDebugMessage?.invoke("📷 Analyzing image...")
+                        
+                        val visionService = VisionAPIService(context, provider)
+                        val result = visionService.analyzeImage(bitmap, "Describe what you see in this image briefly.")
+                        
+                        result.onSuccess { visionDescription ->
+                            Log.d(TAG, "Vision context: $visionDescription")
+                            onDebugMessage?.invoke("👁️ Vision: ${visionDescription.take(100)}")
+                            
+                            // Inject vision context as a system message in the conversation
+                            val contextMessage = mapOf(
+                                "type" to "conversation.item.create",
+                                "item" to mapOf(
+                                    "type" to "message",
+                                    "role" to "system",
+                                    "content" to listOf(
+                                        mapOf(
+                                            "type" to "input_text",
+                                            "text" to "Context: User's current view shows: $visionDescription"
+                                        )
+                                    )
+                                )
+                            )
+                            webSocket?.send(gson.toJson(contextMessage))
+                            Log.d(TAG, "Vision context injected into conversation")
+                        }.onFailure { error ->
+                            Log.e(TAG, "Vision API error: ${error.message}")
+                            onDebugMessage?.invoke("❌ Vision error: ${error.message}")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error analyzing image: ${e.message}", e)
+                    }
+                }
+                return
+            }
+            
+            // Alibaba Cloud: Direct image buffer append
             val outputStream = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, 60, outputStream)
             val bytes = outputStream.toByteArray()
@@ -247,40 +361,124 @@ class OmniRealtimeService(
         try {
             val json = gson.fromJson(text, JsonObject::class.java)
             val type = json.get("type")?.asString ?: return
+            
+            Log.d(TAG, "Processing message type: $type")
 
             when (type) {
                 "session.created", "session.updated" -> {
-                    Log.d(TAG, "Session ready")
+                    Log.d(TAG, "Session ready: $text")
+                }
+                "response.created" -> {
+                    Log.d(TAG, "Response created")
+                    onDebugMessage?.invoke("🎯 Response created")
+                }
+                "response.output_item.added" -> {
+                    Log.d(TAG, "Output item added: $text")
+                    onDebugMessage?.invoke("📝 Output item added")
+                }
+                "response.content_part.added" -> {
+                    Log.d(TAG, "Content part added: $text")
+                    onDebugMessage?.invoke("📝 Content part added")
                 }
                 "input_audio_buffer.speech_started" -> {
+                    Log.d(TAG, "User speech started")
                     _isSpeaking.value = false
                     stopAudioPlayback()
                     onSpeechStarted?.invoke()
                 }
                 "input_audio_buffer.speech_stopped" -> {
+                    Log.d(TAG, "User speech stopped")
                     onSpeechStopped?.invoke()
+                    // Note: With server_vad turn_detection, OpenAI automatically creates a response
+                    // No need to call response.create manually
                 }
                 "response.audio_transcript.delta" -> {
                     val delta = json.get("delta")?.asString ?: ""
+                    Log.d(TAG, "Transcript delta: $delta")
                     _currentTranscript.value += delta
                     onTranscriptDelta?.invoke(delta)
                 }
                 "response.audio_transcript.done" -> {
                     val transcript = _currentTranscript.value
+                    Log.d(TAG, "Transcript done: $transcript")
                     onTranscriptDone?.invoke(transcript)
                     _currentTranscript.value = ""
                 }
                 "conversation.item.input_audio_transcription.completed" -> {
                     val transcript = json.get("transcript")?.asString ?: ""
+                    Log.d(TAG, "User transcript: $transcript")
                     onUserTranscript?.invoke(transcript)
                 }
+                // OpenAI event names
+                "response.output_audio_transcript.delta" -> {
+                    val delta = json.get("delta")?.asString ?: ""
+                    Log.d(TAG, "Transcript delta (OpenAI): $delta")
+                    _currentTranscript.value += delta
+                    onTranscriptDelta?.invoke(delta)
+                }
+                "response.output_audio_transcript.done" -> {
+                    val transcript = json.get("transcript")?.asString ?: _currentTranscript.value
+                    Log.d(TAG, "Transcript done (OpenAI): $transcript")
+                    onTranscriptDone?.invoke(transcript)
+                    _currentTranscript.value = ""
+                }
+                "response.output_audio.delta" -> {
+                    Log.d(TAG, "Audio delta event received (OpenAI), full JSON: $text")
+                    onDebugMessage?.invoke("🔊 Audio event (OpenAI): ${text.take(200)}")
+                    
+                    val audioData = json.get("delta")?.asString
+                    if (audioData != null) {
+                        val audioBytes = Base64.decode(audioData, Base64.DEFAULT)
+                        Log.d(TAG, "Audio delta decoded: ${audioBytes.size} bytes")
+                        onDebugMessage?.invoke("🔊 Playing audio: ${audioBytes.size} bytes")
+                        playAudio(audioBytes)
+                    } else {
+                        Log.w(TAG, "Audio delta is null in response.output_audio.delta")
+                        onDebugMessage?.invoke("⚠️ Audio delta is null!")
+                    }
+                }
+                "response.output_audio.done" -> {
+                    Log.d(TAG, "Audio response done (OpenAI)")
+                    _isSpeaking.value = false
+                }
+                // Alibaba Cloud event names
                 "response.audio.delta" -> {
-                    val audioData = json.get("delta")?.asString ?: return
-                    val audioBytes = Base64.decode(audioData, Base64.DEFAULT)
-                    playAudio(audioBytes)
+                    Log.d(TAG, "Audio delta event received (Alibaba), full JSON: $text")
+                    onDebugMessage?.invoke("🔊 Audio event (Alibaba): ${text.take(200)}")
+                    
+                    val audioData = json.get("delta")?.asString
+                    if (audioData != null) {
+                        val audioBytes = Base64.decode(audioData, Base64.DEFAULT)
+                        Log.d(TAG, "Audio delta decoded: ${audioBytes.size} bytes")
+                        onDebugMessage?.invoke("🔊 Playing audio: ${audioBytes.size} bytes")
+                        playAudio(audioBytes)
+                    } else {
+                        Log.w(TAG, "Audio delta is null in response.audio.delta")
+                        onDebugMessage?.invoke("⚠️ Audio delta is null!")
+                    }
                 }
                 "response.audio.done" -> {
+                    Log.d(TAG, "Audio response done (Alibaba)")
                     _isSpeaking.value = false
+                }
+                "response.done" -> {
+                    val response = json.get("response")?.asJsonObject
+                    val status = response?.get("status")?.asString
+                    Log.d(TAG, "Response done with status: $status")
+                    
+                    if (status == "failed") {
+                        val statusDetails = response?.get("status_details")?.asJsonObject
+                        val errorType = statusDetails?.get("type")?.asString
+                        val errorObj = statusDetails?.get("error")?.asJsonObject
+                        val errorCode = errorObj?.get("code")?.asString
+                        val errorMessage = errorObj?.get("message")?.asString
+                        
+                        val fullError = "Response failed - Type: $errorType, Code: $errorCode, Message: $errorMessage"
+                        Log.e(TAG, fullError)
+                        onDebugMessage?.invoke("❌ ERROR: $fullError")
+                        _errorMessage.value = errorMessage ?: context.getString(R.string.error_response_failed)
+                        onError?.invoke(fullError)
+                    }
                 }
                 "error" -> {
                     val errorMsg = json.get("error")?.asJsonObject?.get("message")?.asString
@@ -288,18 +486,29 @@ class OmniRealtimeService(
                     _errorMessage.value = errorMsg
                     onError?.invoke(errorMsg ?: "Unknown error")
                 }
+                else -> {
+                    Log.d(TAG, "Unhandled message type: $type")
+                    // Log all unhandled message types to debug
+                    if (type.contains("audio") || type.contains("response")) {
+                        onDebugMessage?.invoke("⚠️ Unhandled: $type")
+                    }
+                }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error handling message: ${e.message}")
+            Log.e(TAG, "Error handling message: ${e.message}", e)
         }
     }
 
     private fun playAudio(audioData: ByteArray) {
+        Log.d(TAG, "playAudio called with ${audioData.size} bytes, queue size: ${audioQueue.size}")
+        onDebugMessage?.invoke("🔊 Queuing audio: ${audioData.size} bytes, queue: ${audioQueue.size}")
         synchronized(audioQueue) {
             audioQueue.add(audioData)
         }
 
         if (audioPlaybackJob?.isActive != true) {
+            Log.d(TAG, "Starting audio playback")
+            onDebugMessage?.invoke("▶️ Starting audio playback")
             startAudioPlayback()
         }
     }

@@ -2,6 +2,10 @@
 <resources>
     <string name="app_name">TurboMeta</string>
 
+    <!-- Meta Wearables DAT SDK Configuration -->
+    <string name="meta_application_id">0</string>
+    <string name="meta_client_token">0</string>
+
     <!-- Navigation / Tabs -->
     <string name="home">Home</string>
     <string name="tab_home">Home</string>
@@ -32,6 +36,8 @@
     <!-- Feature Cards -->
     <string name="feature_liveai_title">Live AI</string>
     <string name="feature_liveai_subtitle">Real-time AI Conversation</string>
+    <string name="feature_audio_chat_title">Audio Chat</string>
+    <string name="feature_audio_chat_subtitle">Voice-only AI Conversation</string>
     <string name="feature_translate_title">Real-time Translation</string>
     <string name="feature_translate_subtitle">Coming Soon</string>
     <string name="feature_leaneat_title">LeanEat</string>
@@ -134,7 +140,7 @@
     <string name="records_delete">Delete</string>
     <string name="records_messages">%d messages</string>
     <string name="conversation_records">Conversation Records</string>
-    <string name="records">对话记录</string>
+    <string name="records">Records</string>
     <string name="gallery">Gallery</string>
     <string name="messages">messages</string>
     <string name="no_records">No conversation records</string>
@@ -163,6 +169,14 @@
     <string name="settings_version">App Version</string>
     <string name="settings_sdk_version">SDK Version</string>
     <string name="api_configuration">API Configuration</string>
+    <string name="ai_provider">AI Provider</string>
+    <string name="select_provider">Select Provider</string>
+    <string name="alibaba_api_key">Alibaba Cloud API Key</string>
+    <string name="openai_api_key">OpenAI API Key</string>
+    <string name="custom_api_key">Custom Endpoint API Key</string>
+    <string name="enter_alibaba_key">Enter Alibaba DashScope API Key</string>
+    <string name="enter_openai_key">Enter OpenAI API Key</string>
+    <string name="enter_custom_key">Enter Custom Endpoint API Key</string>
     <string name="api_key">API Key</string>
     <string name="not_configured">Not configured</string>
     <string name="enter_api_key">Enter API Key</string>
@@ -177,9 +191,33 @@
     <string name="about">About</string>
     <string name="version">Version</string>
     <string name="delete_all">Delete All</string>
-    <string name="delete_confirm_message">Are you sure you want to delete all conversation records? This action cannot be undone.</string>
+    <string name="delete_confirm_message">Are you sure you want to delete all conversation records?
+        This action cannot be undone.</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
+
+    <!-- Settings Messages -->
+    <string name="provider_changed">Provider changed to %1$s</string>
+    <string name="api_key_empty_error">API Key cannot be empty</string>
+    <string name="api_key_saved">%1$s API Key saved successfully</string>
+    <string name="error_api_key_not_configured">API Key not configured for %1$s</string>
+    <string name="error_not_connected">Not connected</string>
+    <string name="error_api_error">API Error: %1$d - %2$s</string>
+    <string name="error_empty_response">Empty response from API</string>
+    <string name="error_parse_response">Failed to parse response</string>
+    <string name="error_parse_nutrition">Failed to parse nutrition data</string>
+    <string name="error_microphone_permission">Microphone permission denied</string>
+    <string name="error_connection_failed">Connection failed</string>
+    <string name="error_response_failed">Response failed</string>
+    <string name="api_key_save_failed">Failed to save API Key</string>
+    <string name="api_key_deleted">%1$s API Key deleted</string>
+    <string name="api_key_delete_failed">Failed to delete API Key</string>
+    <string name="model_changed">Model changed to %1$s</string>
+    <string name="language_changed">Language changed to %1$s</string>
+    <string name="conversations_deleted">All conversations deleted</string>
+    <string name="conversations_delete_failed">Failed to delete conversations</string>
+    <string name="advanced_settings_saved">%1$s advanced settings saved successfully</string>
+    <string name="advanced_settings_save_failed">Failed to save advanced settings</string>
 
     <!-- API Key Settings -->
     <string name="apikey_title">API Key Settings</string>
@@ -220,5 +258,35 @@
     <string name="permission_microphone">Microphone permission is required for AI conversation</string>
     <string name="permission_bluetooth">Bluetooth permission is required to connect to glasses</string>
     <string name="permission_grant">Grant Permission</string>
-    <string name="camera_permission_denied">Camera permission was denied. Please grant camera permission in the Meta AI app to use this feature.</string>
+    <string name="camera_permission_denied">Camera permission was denied. Please grant camera
+        permission in the Meta AI app to use this feature.</string>
+
+    <!-- Dialogs -->
+    <string name="api_key_config_title">API Key Configuration Required</string>
+    <string name="api_key_config_message">You need to configure an API Key to use this feature.</string>
+    <string name="api_key_config_footer">Please configure your API Key in Settings.</string>
+    <string name="get_api_key">Get API Key</string>
+    <string name="go_to_settings">Go to Settings</string>
+    <string name="configure_in_settings">Configure in Settings</string>
+    <string name="device_connection_required">Device Connection Required</string>
+    <string name="device_connection_message">Please connect your Ray-Ban Meta glasses before using
+        this feature.</string>
+    <string name="connect_device">Connect Device</string>
+
+    <!-- Provider Names -->
+    <string name="provider_alibaba">Alibaba Cloud Qwen</string>
+    <string name="provider_openai">OpenAI</string>
+    <string name="provider_custom">Custom Endpoint</string>
+
+    <!-- Custom Provider Configuration -->
+    <string name="api_base_url">API Base URL</string>
+    <string name="api_base_url_placeholder">https://api.example.com/v1</string>
+
+    <!-- Language Names -->
+    <string name="language_chinese">Chinese</string>
+    <string name="language_english">English</string>
+    <string name="language_japanese">Japanese</string>
+    <string name="language_korean">Korean</string>
+    <string name="language_spanish">Spanish</string>
+    <string name="language_french">French</string>
 </resources>

@@ -11,6 +11,15 @@
         android:maxSdkVersion="28"
         tools:ignore="ScopedStorage" />
 
+    <!-- Allow app to query for Meta View/Horizon app -->
+    <queries>
+        <package android:name="com.meta.wearable.mwdat" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="fb-viewapp" />
+        </intent>
+    </queries>
+
     <application
         android:name=".TurboMetaApplication"
         android:allowBackup="true"
@@ -24,24 +33,34 @@
         <!-- Meta Wearables DAT Configuration -->
         <meta-data
             android:name="com.meta.wearable.mwdat.APPLICATION_ID"
-            android:value="0" />
+            android:value="@string/meta_application_id" />
+
+        <meta-data
+            android:name="com.meta.wearable.mwdat.CLIENT_TOKEN"
+            android:value="@string/meta_client_token" />
+
+        <meta-data
+            android:name="com.meta.wearable.mwdat.ANALYTICS_OPT_OUT"
+            android:value="true" />
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.TurboMeta">
+            android:theme="@style/Theme.TurboMeta"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep linking for Meta AI OAuth callback -->
-            <intent-filter>
+            <!-- Deep linking for Meta Wearables DAT SDK -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="turbometa" />
+                <!-- Try simple scheme matching Meta's pattern -->
+                <data android:scheme="turbometarayban" />
             </intent-filter>
         </activity>
 

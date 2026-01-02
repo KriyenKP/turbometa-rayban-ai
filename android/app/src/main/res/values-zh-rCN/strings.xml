@@ -163,6 +163,14 @@
     <string name="settings_version">应用版本</string>
     <string name="settings_sdk_version">SDK 版本</string>
     <string name="api_configuration">API配置</string>
+    <string name="ai_provider">AI服务商</string>
+    <string name="select_provider">选择服务商</string>
+    <string name="alibaba_api_key">阿里云API密钥</string>
+    <string name="openai_api_key">OpenAI API密钥</string>
+    <string name="custom_api_key">自定义端点API密钥</string>
+    <string name="enter_alibaba_key">输入阿里云DashScope API密钥</string>
+    <string name="enter_openai_key">输入OpenAI API密钥</string>
+    <string name="enter_custom_key">输入自定义端点API密钥</string>
     <string name="api_key">API密钥</string>
     <string name="not_configured">未配置</string>
     <string name="enter_api_key">输入API密钥</string>
@@ -180,6 +188,29 @@
     <string name="delete_confirm_message">确定要删除所有对话记录吗？此操作无法撤销。</string>
     <string name="delete">删除</string>
     <string name="cancel">取消</string>
+
+    <!-- Settings Messages -->
+    <string name="provider_changed">服务商已切换到%1$s</string>
+    <string name="api_key_empty_error">API密钥不能为空</string>
+    <string name="api_key_saved">%1$s API密钥保存成功</string>
+    <string name="error_api_key_not_configured">未配置%1$s的API密钥</string>
+    <string name="error_not_connected">未连接</string>
+    <string name="error_api_error">API错误: %1$d - %2$s</string>
+    <string name="error_empty_response">API返回空响应</string>
+    <string name="error_parse_response">解析响应失败</string>
+    <string name="error_parse_nutrition">解析营养数据失败</string>
+    <string name="error_microphone_permission">麦克风权限被拒绝</string>
+    <string name="error_connection_failed">连接失败</string>
+    <string name="error_response_failed">响应失败</string>
+    <string name="api_key_save_failed">保存API密钥失败</string>
+    <string name="api_key_deleted">%1$s API密钥已删除</string>
+    <string name="api_key_delete_failed">删除API密钥失败</string>
+    <string name="model_changed">模型已切换到%1$s</string>
+    <string name="language_changed">语言已切换到%1$s</string>
+    <string name="conversations_deleted">所有对话已删除</string>
+    <string name="conversations_delete_failed">删除对话失败</string>
+    <string name="advanced_settings_saved">%1$s 高级设置保存成功</string>
+    <string name="advanced_settings_save_failed">保存高级设置失败</string>
 
     <!-- API Key Settings -->
     <string name="apikey_title">API Key 设置</string>
@@ -221,4 +252,32 @@
     <string name="permission_bluetooth">连接眼镜需要蓝牙权限</string>
     <string name="permission_grant">授予权限</string>
     <string name="camera_permission_denied">相机权限被拒绝。请在 Meta AI 应用中授予相机权限以使用此功能。</string>
+
+    <!-- Dialogs -->
+    <string name="api_key_config_title">需要配置 API Key</string>
+    <string name="api_key_config_message">使用此功能需要先配置 API Key。</string>
+    <string name="api_key_config_footer">请在设置中配置您的 API Key。</string>
+    <string name="get_api_key">获取 API Key</string>
+    <string name="go_to_settings">去设置</string>
+    <string name="configure_in_settings">在设置中配置</string>
+    <string name="device_connection_required">需要连接设备</string>
+    <string name="device_connection_message">请先连接 Ray-Ban Meta 眼镜后再使用此功能。</string>
+    <string name="connect_device">连接设备</string>
+
+    <!-- Provider Names -->
+    <string name="provider_alibaba">阿里云通义千问</string>
+    <string name="provider_openai">OpenAI</string>
+    <string name="provider_custom">自定义端点</string>
+
+    <!-- Custom Provider Configuration -->
+    <string name="api_base_url">API 基础地址</string>
+    <string name="api_base_url_placeholder">https://api.example.com/v1</string>
+
+    <!-- Language Names -->
+    <string name="language_chinese">中文</string>
+    <string name="language_english">English</string>
+    <string name="language_japanese">日本語</string>
+    <string name="language_korean">한국어</string>
+    <string name="language_spanish">Español</string>
+    <string name="language_french">Français</string>
 </resources>

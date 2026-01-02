@@ -51,10 +51,8 @@ class LeanEatViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun initializeService() {
-        val apiKey = apiKeyManager.getAPIKey()
-        if (!apiKey.isNullOrBlank()) {
-            leanEatService = LeanEatService(apiKey)
-        }
+        // Service now takes Context, initialize on demand
+        leanEatService = LeanEatService(getApplication())
     }
 
     fun setCapturedImage(bitmap: Bitmap) {
@@ -71,13 +69,7 @@ class LeanEatViewModel(application: Application) : AndroidViewModel(application)
         }
 
         if (leanEatService == null) {
-            val apiKey = apiKeyManager.getAPIKey()
-            if (apiKey.isNullOrBlank()) {
-                _errorMessage.value = "API Key not configured"
-                _viewState.value = ViewState.Error("API Key not configured")
-                return
-            }
-            leanEatService = LeanEatService(apiKey)
+            leanEatService = LeanEatService(getApplication())
         }
 
         viewModelScope.launch {

@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
         if (granted) {
             initializeSDK()
         } else {
-            wearablesViewModel.setError("请授予所有权限（蓝牙、网络、录音）")
+            wearablesViewModel.setError("Please grant all permissions (Bluetooth, Network, Audio)")
         }
     }
 
@@ -81,6 +81,9 @@ class MainActivity : ComponentActivity() {
 
         // Check and request permissions
         checkAndRequestPermissions()
+
+        // Handle deep link intent
+        handleIntent(intent)
 
         setContent {
             TurboMetaTheme {
@@ -120,5 +123,19 @@ class MainActivity : ComponentActivity() {
 
         // Start observing Wearables state after SDK is initialized
         wearablesViewModel.startMonitoring()
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: android.content.Intent?) {
+        intent?.data?.let { uri ->
+            android.util.Log.d("MainActivity", "Received deep link: $uri")
+            // The Meta DAT SDK should handle this automatically
+            // but we log it for debugging
+        }
     }
 }

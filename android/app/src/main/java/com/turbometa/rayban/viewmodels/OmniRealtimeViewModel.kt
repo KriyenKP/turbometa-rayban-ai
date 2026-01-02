@@ -4,10 +4,12 @@ import android.app.Application
 import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.turbometa.rayban.R
 import com.turbometa.rayban.data.ConversationStorage
 import com.turbometa.rayban.models.ConversationMessage
 import com.turbometa.rayban.models.ConversationRecord
 import com.turbometa.rayban.models.MessageRole
+import com.turbometa.rayban.services.AIProviderConfig
 import com.turbometa.rayban.services.OmniRealtimeService
 import com.turbometa.rayban.utils.APIKeyManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +51,12 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _debugMessages = MutableStateFlow<List<String>>(emptyList())
+    val debugMessages: StateFlow<List<String>> = _debugMessages.asStateFlow()
+
+    private val _showDebugOverlay = MutableStateFlow(false)
+    val showDebugOverlay: StateFlow<Boolean> = _showDebugOverlay.asStateFlow()
+
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
@@ -66,16 +74,30 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun initializeService() {
-        val apiKey = apiKeyManager.getAPIKey()
+        // Get the selected provider and its API key
+        val selectedProvider = apiKeyManager.getSelectedProvider()
+        val apiKey = apiKeyManager.getAPIKey(selectedProvider)
+        
         if (apiKey.isNullOrBlank()) {
-            _errorMessage.value = "API Key not configured"
+            val providerName = selectedProvider.getDisplayName(getApplication())
+            _errorMessage.value = getApplication<Application>().getString(
+                R.string.error_api_key_not_configured,
+                providerName
+            )
             return
         }
 
-        val model = apiKeyManager.getAIModel()
+        // Get provider configuration
+        val providerConfig = AIProviderConfig.getProviderConfig(getApplication(), selectedProvider)
         val language = apiKeyManager.getOutputLanguage()
 
-        realtimeService = OmniRealtimeService(apiKey, model, language).apply {
+        realtimeService = OmniRealtimeService(
+            context = getApplication(),
+            apiKey = apiKey,
+            providerConfig = providerConfig,
+            provider = selectedProvider,
+            outputLanguage = language
+        ).apply {
             onTranscriptDelta = { delta ->
                 _currentTranscript.value += delta
             }
@@ -106,6 +128,10 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
             onError = { error ->
                 _errorMessage.value = error
                 _viewState.value = ViewState.Error(error)
+            }
+
+            onDebugMessage = { message ->
+                addDebugMessage(message)
             }
         }
 
@@ -162,7 +188,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
 
     fun startRecording() {
         if (!_isConnected.value) {
-            _errorMessage.value = "Not connected"
+            _errorMessage.value = getApplication<Application>().getString(R.string.error_not_connected)
             return
         }
 
@@ -233,6 +259,22 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         realtimeService?.disconnect()
         realtimeService = null
         initializeService()
+    }
+
+    fun toggleDebugOverlay() {
+        _showDebugOverlay.value = !_showDebugOverlay.value
+    }
+
+    private fun addDebugMessage(message: String) {
+        val timestamp = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        val debugMsg = "[$timestamp] $message"
+        
+        _debugMessages.value = (_debugMessages.value + debugMsg).takeLast(50) // Keep last 50 messages
+    }
+
+    fun clearDebugMessages() {
+        _debugMessages.value = emptyList()
     }
 
     override fun onCleared() {
