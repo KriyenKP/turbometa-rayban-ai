@@ -29,6 +29,10 @@ struct RecordsView: View {
                         RecordTabButton(title: "WordLearn", isSelected: selectedTab == 3) {
                             selectedTab = 3
                         }
+
+                        RecordTabButton(title: "quickvision.tab".localized, isSelected: selectedTab == 4) {
+                            selectedTab = 4
+                        }
                     }
                     .padding(.horizontal, AppSpacing.lg)
                     .padding(.vertical, AppSpacing.md)
@@ -48,6 +52,9 @@ struct RecordsView: View {
 
                     WordLearnRecordsView()
                         .tag(3)
+
+                    QuickVisionRecordsView()
+                        .tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
@@ -308,5 +315,130 @@ struct WordLearnRecordsView: View {
                     .foregroundColor(AppColors.textSecondary)
             }
         }
+    }
+}
+
+// MARK: - Quick Vision Records
+
+struct QuickVisionRecordsView: View {
+    @State private var records: [QuickVisionRecord] = []
+    @State private var selectedRecord: QuickVisionRecord?
+
+    var body: some View {
+        ZStack {
+            AppColors.secondaryBackground
+                .ignoresSafeArea()
+
+            if records.isEmpty {
+                // Empty state
+                VStack(spacing: AppSpacing.lg) {
+                    Image(systemName: "eye.circle")
+                        .font(.system(size: 64))
+                        .foregroundColor(AppColors.quickVision.opacity(0.6))
+
+                    Text("quickvision.records.empty".localized)
+                        .font(AppTypography.title2)
+                        .foregroundColor(AppColors.textPrimary)
+
+                    Text("quickvision.records.empty.hint".localized)
+                        .font(AppTypography.subheadline)
+                        .foregroundColor(AppColors.textSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AppSpacing.xl)
+                }
+            } else {
+                // Records list
+                ScrollView {
+                    LazyVStack(spacing: AppSpacing.md) {
+                        ForEach(records) { record in
+                            QuickVisionRecordCell(record: record)
+                                .onTapGesture {
+                                    selectedRecord = record
+                                }
+                        }
+                    }
+                    .padding(AppSpacing.md)
+                }
+                .refreshable {
+                    loadRecords()
+                }
+            }
+        }
+        .onAppear {
+            loadRecords()
+        }
+        .sheet(item: $selectedRecord) { record in
+            QuickVisionRecordDetailView(record: record)
+        }
+    }
+
+    private func loadRecords() {
+        records = QuickVisionStorage.shared.loadAllRecords()
+    }
+}
+
+// MARK: - Quick Vision Record Cell
+
+struct QuickVisionRecordCell: View {
+    let record: QuickVisionRecord
+
+    var body: some View {
+        HStack(spacing: AppSpacing.md) {
+            // Thumbnail
+            if let thumbnail = record.thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 70, height: 70)
+                    .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.md))
+            } else {
+                RoundedRectangle(cornerRadius: AppCornerRadius.md)
+                    .fill(Color.secondary.opacity(0.2))
+                    .frame(width: 70, height: 70)
+                    .overlay {
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                    }
+            }
+
+            VStack(alignment: .leading, spacing: AppSpacing.sm) {
+                // Header
+                HStack {
+                    Image(systemName: record.mode.icon)
+                        .foregroundColor(AppColors.quickVision)
+                        .font(AppTypography.subheadline)
+
+                    Text(record.mode.displayName)
+                        .font(AppTypography.headline)
+                        .foregroundColor(AppColors.textPrimary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(AppTypography.caption)
+                        .foregroundColor(AppColors.textTertiary)
+                }
+
+                // Result summary
+                Text(record.summary)
+                    .font(AppTypography.subheadline)
+                    .foregroundColor(AppColors.textSecondary)
+                    .lineLimit(2)
+
+                // Footer
+                HStack(spacing: AppSpacing.xs) {
+                    Image(systemName: "clock")
+                        .font(AppTypography.caption)
+                    Text(record.formattedDate)
+                        .font(AppTypography.caption)
+                }
+                .foregroundColor(AppColors.textSecondary)
+            }
+        }
+        .padding(AppSpacing.md)
+        .background(AppColors.tertiaryBackground)
+        .cornerRadius(AppCornerRadius.lg)
+        .shadow(color: AppShadow.small(), radius: 4, x: 0, y: 2)
     }
 }

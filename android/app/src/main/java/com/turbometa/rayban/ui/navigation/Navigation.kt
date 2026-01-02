@@ -27,10 +27,14 @@ sealed class Screen(val route: String) {
     object LiveAI : Screen("live_ai")
     object LeanEat : Screen("lean_eat")
     object Vision : Screen("vision")
+    object QuickVision : Screen("quick_vision")
     object Settings : Screen("settings")
     object Records : Screen("records")
     object Gallery : Screen("gallery")
     object LiveStream : Screen("live_stream")
+    object RTMPStream : Screen("rtmp_stream")
+    object QuickVisionMode : Screen("quick_vision_mode")
+    object LiveAIMode : Screen("live_ai_mode")
 }
 
 sealed class BottomNavItem(
@@ -115,13 +119,16 @@ fun TurboMetaNavigation(
                         navController.navigate(Screen.LeanEat.route)
                     },
                     onNavigateToVision = {
-                        navController.navigate(Screen.Vision.route)
+                        navController.navigate(Screen.QuickVision.route)
                     },
                     onNavigateToSettings = {
                         navController.navigate(Screen.Settings.route)
                     },
                     onNavigateToLiveStream = {
                         navController.navigate(Screen.LiveStream.route)
+                    },
+                    onNavigateToRTMPStream = {
+                        navController.navigate(Screen.RTMPStream.route)
                     }
                 )
             }
@@ -162,6 +169,15 @@ fun TurboMetaNavigation(
                 )
             }
 
+            composable(Screen.QuickVision.route) {
+                QuickVisionScreen(
+                    wearablesViewModel = wearablesViewModel,
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onBackClick = {
@@ -169,6 +185,12 @@ fun TurboMetaNavigation(
                     },
                     onNavigateToRecords = {
                         navController.navigate(Screen.Records.route)
+                    },
+                    onNavigateToQuickVisionMode = {
+                        navController.navigate(Screen.QuickVisionMode.route)
+                    },
+                    onNavigateToLiveAIMode = {
+                        navController.navigate(Screen.LiveAIMode.route)
                     }
                 )
             }
@@ -192,6 +214,30 @@ fun TurboMetaNavigation(
             composable(Screen.LiveStream.route) {
                 SimpleLiveStreamScreen(
                     wearablesViewModel = wearablesViewModel,
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(Screen.RTMPStream.route) {
+                RTMPStreamingScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(Screen.QuickVisionMode.route) {
+                QuickVisionModeScreen(
+                    onBackClick = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(Screen.LiveAIMode.route) {
+                LiveAIModeScreen(
                     onBackClick = {
                         navController.popBackStack()
                     }

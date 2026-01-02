@@ -40,6 +40,8 @@
     <string name="feature_wordlearn_subtitle">单词学习</string>
     <string name="feature_livestream_title">直播</string>
     <string name="feature_livestream_subtitle">抖音 · 快手 · 小红书</string>
+    <string name="feature_rtmp_title">RTMP 推流</string>
+    <string name="feature_rtmp_subtitle">直接推流到 RTMP 服务器（实验性）</string>
 
     <!-- Connection States -->
     <string name="disconnected">未连接</string>
@@ -116,6 +118,8 @@
     <string name="analyzing_image">正在分析图片…</string>
     <string name="analysis_result">分析结果</string>
     <string name="reanalyze">重新分析</string>
+    <string name="capture_failed">拍照失败，请重试</string>
+    <string name="analysis_failed">图像分析失败</string>
 
     <!-- Quick Prompts -->
     <string name="prompt_describe_scene">图中描绘的是什么景象?</string>
@@ -141,6 +145,11 @@
     <string name="conversation_detail">对话详情</string>
     <string name="delete_conversation">删除对话</string>
     <string name="delete_conversation_confirm">确定要删除这条对话吗？</string>
+    <string name="quick_vision">快速识图</string>
+    <string name="no_quick_vision_records">暂无识图记录</string>
+    <string name="quick_vision_detail">识图详情</string>
+    <string name="delete_record">删除记录</string>
+    <string name="delete_record_confirm">确定要删除这条记录吗？</string>
 
     <!-- Gallery -->
     <string name="gallery">图库</string>
@@ -177,6 +186,10 @@
     <string name="delete_api_key">删除API密钥</string>
     <string name="ai_model">AI模型</string>
     <string name="select_model">选择模型</string>
+    <string name="vision_model">视觉模型</string>
+    <string name="select_vision_model">选择视觉模型</string>
+    <string name="search_models">搜索模型…</string>
+    <string name="vision_capable_only">仅显示视觉模型</string>
     <string name="output_language">输出语言</string>
     <string name="select_language">选择语言</string>
     <string name="data">数据</string>
@@ -184,6 +197,13 @@
     <string name="clear_records_desc">删除所有对话历史</string>
     <string name="about">关于</string>
     <string name="version">版本</string>
+    <string name="github_project">GitHub 项目</string>
+    <string name="github_project_url">https://github.com/Turbo1123/turbometa-rayban-ai</string>
+    <string name="download_latest">下载最新版本</string>
+    <string name="download_latest_desc">从 GitHub 获取最新版本</string>
+    <string name="support_development">支持开发</string>
+    <string name="buy_me_coffee">请我喝杯咖啡</string>
+    <string name="buy_me_coffee_url">https://buymeacoffee.com/turbo1123</string>
     <string name="delete_all">全部删除</string>
     <string name="delete_confirm_message">确定要删除所有对话记录吗？此操作无法撤销。</string>
     <string name="delete">删除</string>
@@ -235,7 +255,21 @@
     <string name="close">关闭</string>
     <string name="back">返回</string>
 
+    <!-- Dialogs -->
+    <string name="api_key_required">需要配置 API Key</string>
+    <string name="api_key_required_desc">请前往阿里云百炼控制台获取 API Key，然后在设置中配置。</string>
+    <string name="go_to_settings">去设置</string>
+    <string name="device_required">需要连接设备</string>
+    <string name="device_required_desc">请先连接 Ray-Ban Meta 眼镜后再使用此功能。</string>
+    <string name="connect_device">连接设备</string>
+    <string name="glasses_not_connected">眼镜未连接</string>
+    <string name="glasses_not_connected_desc">眼镜未连接，请先连接眼镜</string>
+    <string name="stream_failed">视频流启动失败，请检查眼镜连接</string>
+    <string name="please_connect_glasses">请先连接眼镜</string>
+
     <!-- Streaming -->
+    <string name="stream_live">直播中</string>
+    <string name="stream_no_video">无视频</string>
     <string name="stream_start">开始推流</string>
     <string name="stream_stop">停止推流</string>
     <string name="stream_capture">拍照</string>
@@ -251,6 +285,7 @@
     <string name="permission_microphone">AI 对话需要麦克风权限</string>
     <string name="permission_bluetooth">连接眼镜需要蓝牙权限</string>
     <string name="permission_grant">授予权限</string>
+    <string name="permission_all_required">请授予所有权限（蓝牙、网络、录音）</string>
     <string name="camera_permission_denied">相机权限被拒绝。请在 Meta AI 应用中授予相机权限以使用此功能。</string>
 
     <!-- Dialogs -->

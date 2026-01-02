@@ -3,6 +3,7 @@ package com.turbometa.rayban.services
 import android.content.Context
 import android.graphics.Bitmap
 import android.util.Base64
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.turbometa.rayban.R
@@ -29,6 +30,34 @@ class VisionAPIService(
 
     private val gson = Gson()
 
+    // MARK: - Configuration
+
+    private val currentProvider: APIProvider
+        get() = providerManager.currentProvider.value
+
+    private val alibabaEndpoint: AlibabaEndpoint
+        get() = providerManager.alibabaEndpoint.value
+
+    private val baseURL: String
+        get() = when (currentProvider) {
+            APIProvider.ALIBABA -> when (alibabaEndpoint) {
+                AlibabaEndpoint.BEIJING -> ALIBABA_BEIJING_URL
+                AlibabaEndpoint.SINGAPORE -> ALIBABA_SINGAPORE_URL
+            }
+            APIProvider.OPENROUTER -> OPENROUTER_URL
+        }
+
+    private val apiKey: String?
+        get() = when (currentProvider) {
+            APIProvider.ALIBABA -> apiKeyManager.getAPIKey(APIProvider.ALIBABA, alibabaEndpoint)
+            APIProvider.OPENROUTER -> apiKeyManager.getAPIKey(APIProvider.OPENROUTER)
+        }
+
+    private val model: String
+        get() = providerManager.selectedModel.value
+
+    // MARK: - Analyze Image
+
     suspend fun analyzeImage(image: Bitmap, prompt: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             // Resolve provider configuration
@@ -46,6 +75,14 @@ class VisionAPIService(
                 .url(url)
                 .addHeader("Authorization", "Bearer $apiKey")
                 .addHeader("Content-Type", "application/json")
+
+            // Add OpenRouter-specific headers
+            if (currentProvider == APIProvider.OPENROUTER) {
+                requestBuilder.addHeader("HTTP-Referer", "https://turbometa.app")
+                requestBuilder.addHeader("X-Title", "TurboMeta")
+            }
+
+            val request = requestBuilder
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
 
@@ -71,11 +108,81 @@ class VisionAPIService(
                 ))
             }
 
+            Log.d(TAG, "Analysis successful")
             Result.success(result)
         } catch (e: Exception) {
+            Log.e(TAG, "Error analyzing image: ${e.message}")
             Result.failure(e)
         }
     }
+
+    // MARK: - Quick Vision (for background recognition)
+    // Uses QuickVisionModeManager to get the prompt based on selected mode
+
+    suspend fun quickVision(image: Bitmap, language: String = "zh-CN"): Result<String> {
+        // Use mode manager if context is available, otherwise fall back to language-based prompt
+        val prompt = context?.let {
+            val modeManager = QuickVisionModeManager.getInstance(it)
+            val currentMode = modeManager.currentMode.value
+            val modePrompt = modeManager.getPrompt()
+            Log.d(TAG, "QuickVision using mode: ${currentMode.id}, prompt length: ${modePrompt.length}")
+            Log.d(TAG, "QuickVision prompt: ${modePrompt.take(100)}...")
+            modePrompt
+        } ?: getQuickVisionPrompt(language)
+
+        return analyzeImage(image, prompt)
+    }
+
+    /**
+     * Get localized Quick Vision prompt matching iOS implementation
+     */
+    private fun getQuickVisionPrompt(language: String): String {
+        return when (language) {
+            "zh-CN" -> """
+                你是一个智能眼镜AI助手。请用简洁的中文描述图片内容，适合语音播报。
+
+                要求：
+                1. 用1-2句话描述主要内容
+                2. 语言自然、口语化
+                3. 不要使用标点符号过多
+                4. 总字数控制在50字以内
+                5. 直接描述，不要说"图片中"或"我看到"
+            """.trimIndent()
+            "en-US" -> """
+                You are a smart glasses AI assistant. Please describe the image content concisely, suitable for voice announcement.
+
+                Requirements:
+                1. Describe the main content in 1-2 sentences
+                2. Use natural, conversational language
+                3. Don't use too many punctuation marks
+                4. Keep the total under 50 words
+                5. Describe directly, don't say "in the image" or "I see"
+            """.trimIndent()
+            "ja-JP" -> """
+                あなたはスマートグラスのAIアシスタントです。画像の内容を簡潔に日本語で説明してください。音声読み上げに適した形式で。
+
+                要件：
+                1. 1-2文で主要な内容を説明
+                2. 自然で会話的な言葉を使用
+                3. 句読点を多用しない
+                4. 合計50文字以内
+                5. 直接説明し、「画像には」や「見えます」とは言わない
+            """.trimIndent()
+            "ko-KR" -> """
+                당신은 스마트 안경 AI 어시스턴트입니다. 이미지 내용을 간결한 한국어로 설명해 주세요. 음성 안내에 적합하게.
+
+                요구사항:
+                1. 1-2문장으로 주요 내용 설명
+                2. 자연스럽고 대화체로
+                3. 구두점을 많이 사용하지 않음
+                4. 총 50자 이내
+                5. 직접 설명하고, "이미지에는"이나 "보입니다"라고 말하지 않음
+            """.trimIndent()
+            else -> getQuickVisionPrompt("en-US")
+        }
+    }
+
+    // MARK: - Private Helpers
 
     private fun encodeImageToBase64(bitmap: Bitmap): String {
         val outputStream = ByteArrayOutputStream()
@@ -123,7 +230,7 @@ class VisionAPIService(
                 null
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Error parsing response: ${e.message}")
             null
         }
     }
@@ -133,5 +240,6 @@ sealed class VisionAPIError : Exception() {
     object InvalidImage : VisionAPIError()
     object EmptyResponse : VisionAPIError()
     object InvalidResponse : VisionAPIError()
+    object NoAPIKey : VisionAPIError()
     data class APIError(override val message: String) : VisionAPIError()
 }

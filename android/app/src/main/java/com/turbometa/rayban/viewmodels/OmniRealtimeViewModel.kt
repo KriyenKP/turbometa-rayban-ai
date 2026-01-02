@@ -2,10 +2,13 @@ package com.turbometa.rayban.viewmodels
 
 import android.app.Application
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.turbometa.rayban.R
 import com.turbometa.rayban.data.ConversationStorage
+import com.turbometa.rayban.managers.APIProviderManager
+import com.turbometa.rayban.managers.LiveAIProvider
 import com.turbometa.rayban.models.ConversationMessage
 import com.turbometa.rayban.models.ConversationRecord
 import com.turbometa.rayban.models.MessageRole
@@ -18,12 +21,28 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 
+/**
+ * OmniRealtimeViewModel
+ * Supports multiple Live AI providers: Alibaba Qwen Omni, Google Gemini
+ * 1:1 port from iOS OmniRealtimeViewModel
+ */
 class OmniRealtimeViewModel(application: Application) : AndroidViewModel(application) {
 
+    companion object {
+        private const val TAG = "OmniRealtimeViewModel"
+    }
+
     private val apiKeyManager = APIKeyManager.getInstance(application)
+    private val providerManager = APIProviderManager.getInstance(application)
     private val conversationStorage = ConversationStorage.getInstance(application)
 
-    private var realtimeService: OmniRealtimeService? = null
+    // Services
+    private var omniService: OmniRealtimeService? = null
+    private var geminiService: GeminiLiveService? = null
+
+    // Current provider
+    private val _currentProvider = MutableStateFlow(providerManager.liveAIProvider.value)
+    val currentProvider: StateFlow<LiveAIProvider> = _currentProvider.asStateFlow()
 
     // State
     sealed class ViewState {
@@ -70,6 +89,20 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
     private var pendingVideoFrame: Bitmap? = null
 
     init {
+        // Observe provider changes
+        viewModelScope.launch {
+            providerManager.liveAIProvider.collect { provider ->
+                if (_currentProvider.value != provider) {
+                    _currentProvider.value = provider
+                    Log.d(TAG, "Live AI provider changed to: ${provider.displayName}")
+                    // Refresh service if connected
+                    if (_isConnected.value) {
+                        disconnect()
+                    }
+                    initializeService()
+                }
+            }
+        }
         initializeService()
     }
 
@@ -135,9 +168,61 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
             }
         }
 
-        // Observe service states
+        observeOmniServiceStates()
+    }
+
+    private fun initializeGeminiService(apiKey: String, language: String) {
+        // Clean up Omni service if exists
+        omniService?.disconnect()
+        omniService = null
+
+        val model = providerManager.liveAIModel.value
+
+        geminiService = GeminiLiveService(apiKey, model, language).apply {
+            onTranscriptDelta = { delta ->
+                _currentTranscript.value += delta
+            }
+
+            onTranscriptDone = { transcript ->
+                if (transcript.isNotBlank()) {
+                    addAssistantMessage(_currentTranscript.value.ifBlank { transcript })
+                }
+                _currentTranscript.value = ""
+                _viewState.value = ViewState.Connected
+            }
+
+            onUserTranscript = { transcript ->
+                if (transcript.isNotBlank()) {
+                    _userTranscript.value = transcript
+                    addUserMessage(transcript)
+                }
+            }
+
+            onSpeechStarted = {
+                _viewState.value = ViewState.Recording
+            }
+
+            onSpeechStopped = {
+                _viewState.value = ViewState.Processing
+            }
+
+            onError = { error ->
+                _errorMessage.value = error
+                _viewState.value = ViewState.Error(error)
+            }
+
+            onConnected = {
+                _isConnected.value = true
+                _viewState.value = ViewState.Connected
+            }
+        }
+
+        observeGeminiServiceStates()
+    }
+
+    private fun observeOmniServiceStates() {
         viewModelScope.launch {
-            realtimeService?.isConnected?.collect { connected ->
+            omniService?.isConnected?.collect { connected ->
                 _isConnected.value = connected
                 if (connected && _viewState.value == ViewState.Connecting) {
                     _viewState.value = ViewState.Connected
@@ -148,13 +233,41 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         }
 
         viewModelScope.launch {
-            realtimeService?.isRecording?.collect { recording ->
+            omniService?.isRecording?.collect { recording ->
                 _isRecording.value = recording
             }
         }
 
         viewModelScope.launch {
-            realtimeService?.isSpeaking?.collect { speaking ->
+            omniService?.isSpeaking?.collect { speaking ->
+                _isSpeaking.value = speaking
+                if (speaking) {
+                    _viewState.value = ViewState.Speaking
+                }
+            }
+        }
+    }
+
+    private fun observeGeminiServiceStates() {
+        viewModelScope.launch {
+            geminiService?.isConnected?.collect { connected ->
+                _isConnected.value = connected
+                if (connected && _viewState.value == ViewState.Connecting) {
+                    _viewState.value = ViewState.Connected
+                } else if (!connected && _viewState.value != ViewState.Idle) {
+                    _viewState.value = ViewState.Idle
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            geminiService?.isRecording?.collect { recording ->
+                _isRecording.value = recording
+            }
+        }
+
+        viewModelScope.launch {
+            geminiService?.isSpeaking?.collect { speaking ->
                 _isSpeaking.value = speaking
                 if (speaking) {
                     _viewState.value = ViewState.Speaking
@@ -171,15 +284,20 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
             _messages.value = emptyList()
             currentSessionId = UUID.randomUUID().toString()
 
-            realtimeService?.connect()
+            when (_currentProvider.value) {
+                LiveAIProvider.ALIBABA -> omniService?.connect()
+                LiveAIProvider.GOOGLE -> geminiService?.connect()
+            }
         }
     }
 
     fun disconnect() {
         viewModelScope.launch {
             saveCurrentConversation()
-            realtimeService?.disconnect()
+            omniService?.disconnect()
+            geminiService?.disconnect()
             _viewState.value = ViewState.Idle
+            _isConnected.value = false
             _messages.value = emptyList()
             _currentTranscript.value = ""
             _userTranscript.value = ""
@@ -194,15 +312,24 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
 
         // Update video frame if available
         pendingVideoFrame?.let { frame ->
-            realtimeService?.updateVideoFrame(frame)
+            when (_currentProvider.value) {
+                LiveAIProvider.ALIBABA -> omniService?.updateVideoFrame(frame)
+                LiveAIProvider.GOOGLE -> geminiService?.updateVideoFrame(frame)
+            }
         }
 
-        realtimeService?.startRecording()
+        when (_currentProvider.value) {
+            LiveAIProvider.ALIBABA -> omniService?.startRecording()
+            LiveAIProvider.GOOGLE -> geminiService?.startRecording()
+        }
         _viewState.value = ViewState.Recording
     }
 
     fun stopRecording() {
-        realtimeService?.stopRecording()
+        when (_currentProvider.value) {
+            LiveAIProvider.ALIBABA -> omniService?.stopRecording()
+            LiveAIProvider.GOOGLE -> geminiService?.stopRecording()
+        }
         if (_viewState.value == ViewState.Recording) {
             _viewState.value = ViewState.Processing
         }
@@ -210,7 +337,17 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
 
     fun updateVideoFrame(frame: Bitmap) {
         pendingVideoFrame = frame
-        realtimeService?.updateVideoFrame(frame)
+        when (_currentProvider.value) {
+            LiveAIProvider.ALIBABA -> omniService?.updateVideoFrame(frame)
+            LiveAIProvider.GOOGLE -> geminiService?.updateVideoFrame(frame)
+        }
+    }
+
+    fun sendImage(image: Bitmap) {
+        when (_currentProvider.value) {
+            LiveAIProvider.ALIBABA -> omniService?.updateVideoFrame(image)
+            LiveAIProvider.GOOGLE -> geminiService?.sendImageInput(image)
+        }
     }
 
     private fun addUserMessage(text: String) {
@@ -240,7 +377,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
             id = currentSessionId,
             timestamp = System.currentTimeMillis(),
             messages = _messages.value,
-            aiModel = apiKeyManager.getAIModel(),
+            aiModel = providerManager.liveAIModel.value,
             language = apiKeyManager.getOutputLanguage()
         )
 
@@ -249,15 +386,17 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
 
     fun clearError() {
         _errorMessage.value = null
-        realtimeService?.clearError()
+        omniService?.clearError()
+        geminiService?.clearError()
         if (_viewState.value is ViewState.Error) {
             _viewState.value = if (_isConnected.value) ViewState.Connected else ViewState.Idle
         }
     }
 
     fun refreshService() {
-        realtimeService?.disconnect()
-        realtimeService = null
+        disconnect()
+        omniService = null
+        geminiService = null
         initializeService()
     }
 
@@ -280,6 +419,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
     override fun onCleared() {
         super.onCleared()
         saveCurrentConversation()
-        realtimeService?.disconnect()
+        omniService?.disconnect()
+        geminiService?.disconnect()
     }
 }

@@ -1,5 +1,17 @@
 package com.turbometa.rayban.ui.screens
 
+import android.Manifest
+import android.app.ActivityManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -9,11 +21,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -31,6 +45,7 @@ import com.turbometa.rayban.utils.AIModel
 import com.turbometa.rayban.utils.AIProvider
 import com.turbometa.rayban.utils.APIKeyManager
 import com.turbometa.rayban.utils.OutputLanguage
+import com.turbometa.rayban.utils.StreamQuality
 import com.turbometa.rayban.viewmodels.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,7 +53,9 @@ import com.turbometa.rayban.viewmodels.SettingsViewModel
 fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
     onBackClick: () -> Unit,
-    onNavigateToRecords: () -> Unit
+    onNavigateToRecords: () -> Unit,
+    onNavigateToQuickVisionMode: () -> Unit = {},
+    onNavigateToLiveAIMode: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val selectedProvider by viewModel.selectedProvider.collectAsState()
@@ -47,6 +64,7 @@ fun SettingsScreen(
     val customApiKeyMasked by viewModel.customApiKeyMasked.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
     val selectedLanguage by viewModel.selectedLanguage.collectAsState()
+    val selectedQuality by viewModel.selectedQuality.collectAsState()
     val conversationCount by viewModel.conversationCount.collectAsState()
     val message by viewModel.message.collectAsState()
     val showProviderDialog by viewModel.showProviderDialog.collectAsState()
@@ -54,7 +72,85 @@ fun SettingsScreen(
     val currentApiKeyProvider by viewModel.currentApiKeyProvider.collectAsState()
     val showModelDialog by viewModel.showModelDialog.collectAsState()
     val showLanguageDialog by viewModel.showLanguageDialog.collectAsState()
+    val showQualityDialog by viewModel.showQualityDialog.collectAsState()
     val showDeleteConfirmDialog by viewModel.showDeleteConfirmDialog.collectAsState()
+    val showVisionProviderDialog by viewModel.showVisionProviderDialog.collectAsState()
+    val showEndpointDialog by viewModel.showEndpointDialog.collectAsState()
+    val showLiveAIProviderDialog by viewModel.showLiveAIProviderDialog.collectAsState()
+    val showAppLanguageDialog by viewModel.showAppLanguageDialog.collectAsState()
+    val appLanguage by viewModel.appLanguage.collectAsState()
+    val editingKeyType by viewModel.editingKeyType.collectAsState()
+    val showVisionModelDialog by viewModel.showVisionModelDialog.collectAsState()
+    val selectedVisionModel by viewModel.selectedVisionModel.collectAsState()
+    val openRouterModels by viewModel.openRouterModels.collectAsState()
+    val isLoadingModels by viewModel.isLoadingModels.collectAsState()
+    val modelsError by viewModel.modelsError.collectAsState()
+
+    // Picovoice states
+    var hasPicovoiceKey by remember { mutableStateOf(PorcupineWakeWordService.hasAccessKey(context)) }
+    var showPicovoiceDialog by remember { mutableStateOf(false) }
+    var isWakeWordEnabled by remember { mutableStateOf(isServiceRunning(context, PorcupineWakeWordService::class.java)) }
+    var pendingWakeWordEnable by remember { mutableStateOf(false) }
+
+    // Permission launcher for microphone
+    val microphonePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Permission granted, start the service
+            val intent = Intent(context, PorcupineWakeWordService::class.java).apply {
+                action = PorcupineWakeWordService.ACTION_START
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+            isWakeWordEnabled = true
+            Toast.makeText(context, context.getString(R.string.picovoice_enabled), Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, context.getString(R.string.permission_microphone), Toast.LENGTH_LONG).show()
+        }
+        pendingWakeWordEnable = false
+    }
+
+    // Function to toggle wake word service
+    fun toggleWakeWordService(enabled: Boolean) {
+        if (enabled) {
+            // Check if access key is configured
+            if (!PorcupineWakeWordService.hasAccessKey(context)) {
+                Toast.makeText(context, context.getString(R.string.picovoice_not_configured), Toast.LENGTH_SHORT).show()
+                showPicovoiceDialog = true
+                return
+            }
+            // Check microphone permission
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                // Request permission
+                pendingWakeWordEnable = true
+                microphonePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                return
+            }
+            // Start the service
+            val intent = Intent(context, PorcupineWakeWordService::class.java).apply {
+                action = PorcupineWakeWordService.ACTION_START
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+            isWakeWordEnabled = true
+            Toast.makeText(context, context.getString(R.string.picovoice_enabled), Toast.LENGTH_SHORT).show()
+        } else {
+            // Stop the service
+            val intent = Intent(context, PorcupineWakeWordService::class.java).apply {
+                action = PorcupineWakeWordService.ACTION_STOP
+            }
+            context.startService(intent)
+            isWakeWordEnabled = false
+            Toast.makeText(context, context.getString(R.string.picovoice_disabled), Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -140,10 +236,113 @@ fun SettingsScreen(
                 HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
 
                 SettingsItem(
+                    icon = Icons.Default.RecordVoiceOver,
+                    title = stringResource(R.string.settings_liveai_provider),
+                    subtitle = if (liveAIProvider == LiveAIProvider.ALIBABA)
+                        stringResource(R.string.liveai_alibaba)
+                    else
+                        stringResource(R.string.liveai_google),
+                    onClick = { viewModel.showLiveAIProviderDialog() }
+                )
+
+                // Google API Key (only when Google selected for Live AI)
+                if (liveAIProvider == LiveAIProvider.GOOGLE) {
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+                    SettingsItem(
+                        icon = Icons.Default.Key,
+                        title = stringResource(R.string.apikey_google),
+                        subtitle = if (hasGoogleKey)
+                            stringResource(R.string.settings_apikey_configured)
+                        else
+                            stringResource(R.string.settings_apikey_not_configured),
+                        subtitleColor = if (hasGoogleKey) Success else Error,
+                        onClick = {
+                            viewModel.showApiKeyDialogForType(SettingsViewModel.EditingKeyType.GOOGLE)
+                        }
+                    )
+                }
+            }
+
+            // Quick Vision / Picovoice Section
+            SettingsSection(title = stringResource(R.string.settings_quickvision)) {
+                // Quick Vision Mode Settings
+                SettingsItem(
+                    icon = Icons.Default.Visibility,
+                    title = stringResource(R.string.quickvision_mode_settings),
+                    subtitle = stringResource(R.string.quickvision_mode_section),
+                    onClick = onNavigateToQuickVisionMode
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                // Wake Word Toggle
+                SettingsToggleItem(
+                    icon = Icons.Default.RecordVoiceOver,
+                    title = stringResource(R.string.wakeword_detection),
+                    subtitle = if (isWakeWordEnabled)
+                        stringResource(R.string.wakeword_enabled_desc)
+                    else
+                        stringResource(R.string.wakeword_disabled_desc),
+                    checked = isWakeWordEnabled,
+                    onCheckedChange = { toggleWakeWordService(it) }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                SettingsItem(
+                    icon = Icons.Default.Key,
+                    title = stringResource(R.string.picovoice_accesskey),
+                    subtitle = if (hasPicovoiceKey)
+                        stringResource(R.string.picovoice_configured)
+                    else
+                        stringResource(R.string.picovoice_not_configured),
+                    subtitleColor = if (hasPicovoiceKey) Success else Error,
+                    onClick = { showPicovoiceDialog = true }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                // Battery optimization settings
+                SettingsItem(
+                    icon = Icons.Default.BatteryChargingFull,
+                    title = stringResource(R.string.background_running),
+                    subtitle = stringResource(R.string.background_running_desc),
+                    onClick = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                            context.startActivity(intent)
+                        }
+                    }
+                )
+            }
+
+            // AI Settings Section
+            SettingsSection(title = stringResource(R.string.settings_ai)) {
+                // App Language (界面语言)
+                SettingsItem(
+                    icon = Icons.Default.Translate,
+                    title = stringResource(R.string.settings_applanguage),
+                    subtitle = viewModel.getAppLanguageDisplayName(),
+                    onClick = { viewModel.showAppLanguageDialog() }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                // Output Language (AI输出语言)
+                SettingsItem(
                     icon = Icons.Default.Language,
                     title = stringResource(R.string.output_language),
                     subtitle = viewModel.getSelectedLanguageDisplayName(),
                     onClick = { viewModel.showLanguageDialog() }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                SettingsItem(
+                    icon = Icons.Default.HighQuality,
+                    title = stringResource(R.string.video_quality),
+                    subtitle = stringResource(viewModel.getSelectedQuality().displayNameResId),
+                    onClick = { viewModel.showQualityDialog() }
                 )
             }
 
@@ -172,8 +371,44 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.Info,
                     title = stringResource(R.string.version),
-                    subtitle = "1.0.0",
+                    subtitle = "1.5.0",
                     onClick = {}
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                SettingsItem(
+                    icon = Icons.Default.Code,
+                    title = stringResource(R.string.github_project),
+                    subtitle = "turbometa-rayban-ai",
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Turbo1123/turbometa-rayban-ai"))
+                        context.startActivity(intent)
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                SettingsItem(
+                    icon = Icons.Default.Download,
+                    title = stringResource(R.string.download_latest),
+                    subtitle = stringResource(R.string.download_latest_desc),
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Turbo1123/turbometa-rayban-ai/releases"))
+                        context.startActivity(intent)
+                    }
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                SettingsItem(
+                    icon = Icons.Default.Coffee,
+                    title = stringResource(R.string.support_development),
+                    subtitle = stringResource(R.string.buy_me_coffee),
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://buymeacoffee.com/turbo1123"))
+                        context.startActivity(intent)
+                    }
                 )
             }
 
@@ -204,13 +439,32 @@ fun SettingsScreen(
         }
     }
 
-    // Model Selection Dialog
-    if (showModelDialog) {
-        ModelSelectionDialog(
-            selectedModel = selectedModel,
-            models = viewModel.getAvailableModels(),
-            onSelect = { viewModel.selectModel(it) },
-            onDismiss = { viewModel.hideModelDialog() }
+    // Picovoice Dialog
+    if (showPicovoiceDialog) {
+        PicovoiceKeyDialog(
+            currentKey = PorcupineWakeWordService.getAccessKey(context) ?: "",
+            onSave = { key ->
+                PorcupineWakeWordService.saveAccessKey(context, key)
+                hasPicovoiceKey = PorcupineWakeWordService.hasAccessKey(context)
+                true
+            },
+            onDismiss = { showPicovoiceDialog = false }
+        )
+    }
+
+    // Vision Model Selection Dialog
+    if (showVisionModelDialog) {
+        VisionModelSelectionDialog(
+            visionProvider = visionProvider,
+            selectedModel = selectedVisionModel,
+            alibabaModels = viewModel.getAlibabaVisionModels(),
+            openRouterModels = openRouterModels,
+            isLoading = isLoadingModels,
+            error = modelsError,
+            onSearch = { viewModel.searchOpenRouterModels(it) },
+            onRefresh = { viewModel.fetchOpenRouterModels() },
+            onSelect = { viewModel.selectVisionModel(it) },
+            onDismiss = { viewModel.hideVisionModelDialog() }
         )
     }
 
@@ -247,6 +501,16 @@ fun SettingsScreen(
             dismissText = stringResource(R.string.cancel),
             onConfirm = { viewModel.deleteAllConversations() },
             onDismiss = { viewModel.hideDeleteConfirmDialog() }
+        )
+    }
+
+    // App Language Selection Dialog
+    if (showAppLanguageDialog) {
+        AppLanguageSelectionDialog(
+            selectedLanguage = appLanguage,
+            languages = viewModel.getAvailableAppLanguages(),
+            onSelect = { viewModel.selectAppLanguage(it) },
+            onDismiss = { viewModel.hideAppLanguageDialog() }
         )
     }
 }
@@ -287,7 +551,8 @@ private fun SettingsItem(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
-    isDestructive: Boolean = false
+    isDestructive: Boolean = false,
+    subtitleColor: Color? = null
 ) {
     Row(
         modifier = Modifier
@@ -318,7 +583,7 @@ private fun SettingsItem(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                color = subtitleColor ?: MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
         }
 
@@ -385,10 +650,12 @@ private fun ProviderSelectionDialog(
 private fun ApiKeyDialog(
     provider: AIProvider,
     currentKey: String,
+    helpUrl: String?,
     onSave: (String) -> Boolean,
     onDelete: () -> Boolean,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     var apiKey by remember { mutableStateOf(currentKey) }
     var isVisible by remember { mutableStateOf(false) }
 
@@ -428,17 +695,27 @@ private fun ApiKeyDialog(
                     trailingIcon = {
                         IconButton(onClick = { isVisible = !isVisible }) {
                             Icon(
-                                imageVector = if (isVisible) {
-                                    Icons.Default.VisibilityOff
-                                } else {
-                                    Icons.Default.Visibility
-                                },
+                                imageVector = if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                                 contentDescription = "Toggle visibility"
                             )
                         }
                     },
                     singleLine = true
                 )
+
+                helpUrl?.let { url ->
+                    Spacer(modifier = Modifier.height(AppSpacing.small))
+                    TextButton(
+                        onClick = {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        }
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Get API Key")
+                    }
+                }
 
                 if (currentKey.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(AppSpacing.small))
@@ -476,43 +753,267 @@ private fun ApiKeyDialog(
 }
 
 @Composable
-private fun ModelSelectionDialog(
-    selectedModel: String,
-    models: List<AIModel>,
-    onSelect: (AIModel) -> Unit,
+private fun PicovoiceKeyDialog(
+    currentKey: String,
+    onSave: (String) -> Boolean,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    var accessKey by remember { mutableStateOf(currentKey) }
+    var isVisible by remember { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = stringResource(R.string.select_model),
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(text = stringResource(R.string.picovoice_accesskey), fontWeight = FontWeight.SemiBold)
         },
         text = {
             Column {
-                models.forEach { model ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { onSelect(model) }
+                Text(
+                    text = stringResource(R.string.picovoice_description),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+
+                Spacer(modifier = Modifier.height(AppSpacing.medium))
+
+                OutlinedTextField(
+                    value = accessKey,
+                    onValueChange = { accessKey = it },
+                    label = { Text(stringResource(R.string.picovoice_accesskey_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = if (isVisible) {
+                        VisualTransformation.None
+                    } else {
+                        PasswordVisualTransformation()
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    trailingIcon = {
+                        IconButton(onClick = { isVisible = !isVisible }) {
+                            Icon(
+                                imageVector = if (isVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = "Toggle visibility"
                             )
-                            .padding(vertical = AppSpacing.small),
+                        }
+                    },
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(AppSpacing.small))
+
+                TextButton(
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://console.picovoice.ai/"))
+                        context.startActivity(intent)
+                    }
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(stringResource(R.string.picovoice_get_key))
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (onSave(accessKey)) {
+                        onDismiss()
+                    }
+                }
+            ) {
+                Text(stringResource(R.string.save))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun VisionModelSelectionDialog(
+    visionProvider: APIProvider,
+    selectedModel: String,
+    alibabaModels: List<AlibabaVisionModel>,
+    openRouterModels: List<OpenRouterModel>,
+    isLoading: Boolean,
+    error: String?,
+    onSearch: (String) -> List<OpenRouterModel>,
+    onRefresh: () -> Unit,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var showVisionOnly by remember { mutableStateOf(true) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier.fillMaxHeight(0.8f),
+        title = {
+            Text(text = stringResource(R.string.select_vision_model), fontWeight = FontWeight.SemiBold)
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (visionProvider == APIProvider.ALIBABA) {
+                    // Alibaba models - static list
+                    LazyColumn {
+                        items(alibabaModels) { model ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { onSelect(model.id) }
+                                    )
+                                    .padding(vertical = AppSpacing.small),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = model.id == selectedModel,
+                                    onClick = { onSelect(model.id) }
+                                )
+                                Spacer(modifier = Modifier.width(AppSpacing.small))
+                                Column {
+                                    Text(
+                                        text = model.displayName,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                    Text(
+                                        text = model.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // OpenRouter models - with search
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text(stringResource(R.string.search_models)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
+                                }
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(AppSpacing.small))
+
+                    // Vision only toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(
-                            selected = model.id == selectedModel,
-                            onClick = { onSelect(model) }
+                        Checkbox(
+                            checked = showVisionOnly,
+                            onCheckedChange = { showVisionOnly = it }
                         )
-                        Spacer(modifier = Modifier.width(AppSpacing.small))
                         Text(
-                            text = model.displayName,
-                            style = MaterialTheme.typography.bodyLarge
+                            text = stringResource(R.string.vision_capable_only),
+                            style = MaterialTheme.typography.bodyMedium
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(AppSpacing.small))
+
+                    when {
+                        isLoading -> {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
+                            }
+                        }
+                        error != null -> {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = error,
+                                    color = Error,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(modifier = Modifier.height(AppSpacing.small))
+                                TextButton(onClick = onRefresh) {
+                                    Text(stringResource(R.string.retry))
+                                }
+                            }
+                        }
+                        else -> {
+                            val filteredModels = remember(searchQuery, showVisionOnly, openRouterModels) {
+                                val searched = if (searchQuery.isEmpty()) openRouterModels else onSearch(searchQuery)
+                                if (showVisionOnly) searched.filter { it.isVisionCapable } else searched
+                            }
+
+                            LazyColumn(modifier = Modifier.weight(1f)) {
+                                items(filteredModels) { model ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                                onClick = { onSelect(model.id) }
+                                            )
+                                            .padding(vertical = AppSpacing.small),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = model.id == selectedModel,
+                                            onClick = { onSelect(model.id) }
+                                        )
+                                        Spacer(modifier = Modifier.width(AppSpacing.small))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = model.displayName,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    maxLines = 1
+                                                )
+                                                if (model.isVisionCapable) {
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Icon(
+                                                        Icons.Default.Visibility,
+                                                        contentDescription = "Vision",
+                                                        modifier = Modifier.size(16.dp),
+                                                        tint = Primary
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = model.id,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                                maxLines = 1
+                                            )
+                                            if (model.priceDisplay.isNotEmpty()) {
+                                                Text(
+                                                    text = model.priceDisplay,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Success
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -532,14 +1033,10 @@ private fun LanguageSelectionDialog(
     onSelect: (OutputLanguage) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                text = stringResource(R.string.select_language),
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(text = stringResource(R.string.select_language), fontWeight = FontWeight.SemiBold)
         },
         text = {
             Column {
@@ -557,6 +1054,109 @@ private fun LanguageSelectionDialog(
                     ) {
                         RadioButton(
                             selected = language.code == selectedLanguage,
+                            onClick = { onSelect(language) }
+                        )
+                        Spacer(modifier = Modifier.width(AppSpacing.small))
+                        Column {
+                            Text(text = language.nativeName, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = language.displayName,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun QualitySelectionDialog(
+    selectedQuality: String,
+    qualities: List<StreamQuality>,
+    onSelect: (StreamQuality) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = stringResource(R.string.select_quality), fontWeight = FontWeight.SemiBold)
+        },
+        text = {
+            Column {
+                qualities.forEach { quality ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onSelect(quality) }
+                            )
+                            .padding(vertical = AppSpacing.small),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = quality.id == selectedQuality,
+                            onClick = { onSelect(quality) }
+                        )
+                        Spacer(modifier = Modifier.width(AppSpacing.small))
+                        Column {
+                            Text(text = stringResource(quality.displayNameResId), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                text = stringResource(quality.descriptionResId),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun AppLanguageSelectionDialog(
+    selectedLanguage: AppLanguage,
+    languages: List<AppLanguage>,
+    onSelect: (AppLanguage) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = stringResource(R.string.select_applanguage), fontWeight = FontWeight.SemiBold)
+        },
+        text = {
+            Column {
+                languages.forEach { language ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { onSelect(language) }
+                            )
+                            .padding(vertical = AppSpacing.small),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = language == selectedLanguage,
                             onClick = { onSelect(language) }
                         )
                         Spacer(modifier = Modifier.width(AppSpacing.small))
@@ -802,4 +1402,68 @@ private fun AdvancedSettingsDialog(
             }
         }
     )
+}
+
+@Composable
+private fun SettingsToggleItem(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { onCheckedChange(!checked) }
+            )
+            .padding(AppSpacing.medium),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (checked) Success else Primary,
+            modifier = Modifier.size(24.dp)
+        )
+
+        Spacer(modifier = Modifier.width(AppSpacing.medium))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Success,
+                checkedTrackColor = Success.copy(alpha = 0.5f)
+            )
+        )
+    }
+}
+
+// Helper function to check if a service is running
+private fun isServiceRunning(context: Context, serviceClass: Class<*>): Boolean {
+    val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    @Suppress("DEPRECATION")
+    for (service in manager.getRunningServices(Int.MAX_VALUE)) {
+        if (serviceClass.name == service.service.className) {
+            return true
+        }
+    }
+    return false
 }

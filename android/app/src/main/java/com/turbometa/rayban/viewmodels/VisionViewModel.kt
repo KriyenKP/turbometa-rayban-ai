@@ -8,6 +8,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.turbometa.rayban.managers.APIProviderManager
 import com.turbometa.rayban.services.VisionAPIService
 import com.turbometa.rayban.utils.APIKeyManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +20,7 @@ import java.io.IOException
 class VisionViewModel(application: Application) : AndroidViewModel(application) {
 
     private val apiKeyManager = APIKeyManager.getInstance(application)
+    private val providerManager = APIProviderManager.getInstance(application)
     private var visionService: VisionAPIService? = null
 
     // State

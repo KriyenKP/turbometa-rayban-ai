@@ -148,7 +148,7 @@ struct HomeScreenView: View {
         }
       }
     }
-    .onChange(of: viewModel.registrationState) { newState in
+    .onChange(of: viewModel.registrationState) { _, newState in
       if newState == .registered {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
           showConnectionSuccess = true

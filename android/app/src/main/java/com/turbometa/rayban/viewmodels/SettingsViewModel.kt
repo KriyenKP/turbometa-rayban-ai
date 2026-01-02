@@ -5,19 +5,34 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.turbometa.rayban.R
 import com.turbometa.rayban.data.ConversationStorage
+import com.turbometa.rayban.managers.AlibabaEndpoint
+import com.turbometa.rayban.managers.AlibabaVisionModel
+import com.turbometa.rayban.managers.APIProvider
+import com.turbometa.rayban.managers.APIProviderManager
+import com.turbometa.rayban.managers.AppLanguage
+import com.turbometa.rayban.managers.LanguageManager
+import com.turbometa.rayban.managers.LiveAIProvider
+import com.turbometa.rayban.managers.OpenRouterModel
 import com.turbometa.rayban.utils.AIModel
 import com.turbometa.rayban.utils.AIProvider
 import com.turbometa.rayban.utils.APIKeyManager
 import com.turbometa.rayban.utils.OutputLanguage
+import com.turbometa.rayban.utils.StreamQuality
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * SettingsViewModel
+ * Supports multi-provider configuration (Alibaba/OpenRouter, Alibaba/Google for Live AI)
+ * 1:1 port from iOS settings structure
+ */
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val context = application.applicationContext
     private val apiKeyManager = APIKeyManager.getInstance(application)
+    private val providerManager = APIProviderManager.getInstance(application)
     private val conversationStorage = ConversationStorage.getInstance(application)
 
     // AI Provider
@@ -41,13 +56,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _apiKeyMasked = MutableStateFlow(getMaskedApiKey())
     val apiKeyMasked: StateFlow<String> = _apiKeyMasked.asStateFlow()
 
-    // AI Model
-    private val _selectedModel = MutableStateFlow(apiKeyManager.getAIModel())
+    // AI Model (for Live AI)
+    private val _selectedModel = MutableStateFlow(providerManager.liveAIModel.value)
     val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
+
+    // Vision Model
+    private val _selectedVisionModel = MutableStateFlow(providerManager.selectedModel.value)
+    val selectedVisionModel: StateFlow<String> = _selectedVisionModel.asStateFlow()
 
     // Output Language
     private val _selectedLanguage = MutableStateFlow(apiKeyManager.getOutputLanguage())
     val selectedLanguage: StateFlow<String> = _selectedLanguage.asStateFlow()
+
+    // Video Quality
+    private val _selectedQuality = MutableStateFlow(apiKeyManager.getVideoQuality())
+    val selectedQuality: StateFlow<String> = _selectedQuality.asStateFlow()
 
     // Conversation count
     private val _conversationCount = MutableStateFlow(conversationStorage.getConversationCount())
@@ -72,6 +95,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _showLanguageDialog = MutableStateFlow(false)
     val showLanguageDialog: StateFlow<Boolean> = _showLanguageDialog.asStateFlow()
 
+    private val _showQualityDialog = MutableStateFlow(false)
+    val showQualityDialog: StateFlow<Boolean> = _showQualityDialog.asStateFlow()
+
     private val _showDeleteConfirmDialog = MutableStateFlow(false)
     val showDeleteConfirmDialog: StateFlow<Boolean> = _showDeleteConfirmDialog.asStateFlow()
 
@@ -83,7 +109,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun getAvailableModels(): List<AIModel> = AIModel.entries
 
-    fun getAvailableLanguages(): List<OutputLanguage> = OutputLanguage.entries
+    private val _showEndpointDialog = MutableStateFlow(false)
+    val showEndpointDialog: StateFlow<Boolean> = _showEndpointDialog.asStateFlow()
 
     fun getAvailableProviders(): List<AIProvider> = AIProvider.entries
 
@@ -144,6 +171,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             }
             _message.value = context.getString(R.string.api_key_saved, targetProvider.getDisplayName(context))
             _showApiKeyDialog.value = false
+            _editingKeyType.value = null
         } else {
             _message.value = context.getString(R.string.api_key_save_failed)
         }
@@ -188,7 +216,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun selectModel(model: AIModel) {
-        apiKeyManager.saveAIModel(model.id)
+        providerManager.setLiveAIModel(model.id)
         _selectedModel.value = model.id
         _showModelDialog.value = false
         _message.value = context.getString(R.string.model_changed, model.displayName)
@@ -215,9 +243,116 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _message.value = context.getString(R.string.language_changed, language.getDisplayName(context))
     }
 
+    // App Language Functions
+    fun showAppLanguageDialog() {
+        _showAppLanguageDialog.value = true
+    }
+
+    fun hideAppLanguageDialog() {
+        _showAppLanguageDialog.value = false
+    }
+
+    fun selectAppLanguage(language: AppLanguage) {
+        LanguageManager.setLanguage(getApplication(), language)
+        _appLanguage.value = language
+        _showAppLanguageDialog.value = false
+
+        // Auto-sync output language with app language
+        val outputLangCode = when (language) {
+            AppLanguage.CHINESE -> "zh-CN"
+            AppLanguage.ENGLISH -> "en-US"
+            AppLanguage.SYSTEM -> {
+                // Detect system language
+                val systemLocale = java.util.Locale.getDefault()
+                if (systemLocale.language == "zh") "zh-CN" else "en-US"
+            }
+        }
+        apiKeyManager.saveOutputLanguage(outputLangCode)
+        _selectedLanguage.value = outputLangCode
+
+        _message.value = "App language changed to ${language.displayName}"
+    }
+
+    fun getAppLanguageDisplayName(): String {
+        return when (_appLanguage.value) {
+            AppLanguage.SYSTEM -> "跟随系统 / System"
+            AppLanguage.CHINESE -> "中文"
+            AppLanguage.ENGLISH -> "English"
+        }
+    }
+
+    fun getAvailableAppLanguages(): List<AppLanguage> = LanguageManager.getAvailableLanguages()
+
+    // Vision Model Functions
+    fun showVisionModelDialog() {
+        _showVisionModelDialog.value = true
+        // Auto-fetch OpenRouter models when dialog opens
+        if (_visionProvider.value == APIProvider.OPENROUTER) {
+            fetchOpenRouterModels()
+        }
+    }
+
+    fun hideVisionModelDialog() {
+        _showVisionModelDialog.value = false
+    }
+
+    fun selectVisionModel(modelId: String) {
+        providerManager.setSelectedModel(modelId)
+        _selectedVisionModel.value = modelId
+        _showVisionModelDialog.value = false
+        _message.value = "Model changed to $modelId"
+    }
+
+    fun fetchOpenRouterModels() {
+        viewModelScope.launch {
+            providerManager.fetchOpenRouterModels(apiKeyManager)
+        }
+    }
+
+    fun searchOpenRouterModels(query: String): List<OpenRouterModel> {
+        return providerManager.searchModels(query)
+    }
+
+    fun getAlibabaVisionModels(): List<AlibabaVisionModel> {
+        return AlibabaVisionModel.availableModels
+    }
+
+    fun getSelectedVisionModelDisplayName(): String {
+        val modelId = _selectedVisionModel.value
+        // Check Alibaba models first
+        AlibabaVisionModel.availableModels.find { it.id == modelId }?.let {
+            return it.displayName
+        }
+        // Otherwise return the model ID (for OpenRouter models)
+        return modelId
+    }
+
     fun getSelectedLanguageDisplayName(): String {
         val langCode = _selectedLanguage.value
         return OutputLanguage.entries.find { it.code == langCode }?.getDisplayName(context) ?: langCode
+    }
+
+    // Video Quality Management
+    fun getAvailableQualities(): List<StreamQuality> = StreamQuality.entries
+
+    fun showQualityDialog() {
+        _showQualityDialog.value = true
+    }
+
+    fun hideQualityDialog() {
+        _showQualityDialog.value = false
+    }
+
+    fun selectQuality(quality: StreamQuality) {
+        apiKeyManager.saveVideoQuality(quality.id)
+        _selectedQuality.value = quality.id
+        _showQualityDialog.value = false
+        _message.value = "Video quality changed"
+    }
+
+    fun getSelectedQuality(): StreamQuality {
+        val qualityId = _selectedQuality.value
+        return StreamQuality.entries.find { it.id == qualityId } ?: StreamQuality.MEDIUM
     }
 
     // Conversation Management

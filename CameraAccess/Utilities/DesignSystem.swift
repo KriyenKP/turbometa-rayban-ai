@@ -17,6 +17,7 @@ struct AppColors {
     static let leanEat = Color(hex: "FF6B6B")
     static let wordLearn = Color(hex: "FFA07A")
     static let liveStream = Color(hex: "F38181")
+    static let quickVision = Color(hex: "5B86E5")
 
     static let cardBackground = Color(.systemBackground)
     static let secondaryBackground = Color(.secondarySystemBackground)

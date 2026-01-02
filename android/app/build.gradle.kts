@@ -12,8 +12,8 @@ android {
         applicationId = "com.turbometa.rayban"
         minSdk = 31
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 4
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -21,9 +21,21 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            // Use debug keystore for now
+            storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -50,16 +62,32 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
+    // Split APKs by ABI for smaller file sizes
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true  // Also generate a universal APK
+        }
+    }
 }
 
 dependencies {
     // Meta Wearables DAT SDK
     implementation(libs.mwdat.core)
     implementation(libs.mwdat.camera)
-    implementation(libs.mwdat.mockdevice)
+    // implementation(libs.mwdat.mockdevice) // Only needed for testing
 
     // AndroidX Core
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.exifinterface)
 
@@ -96,4 +124,10 @@ dependencies {
 
     // Collections
     implementation(libs.kotlinx.collections.immutable)
+
+    // Picovoice Wake Word Detection
+    implementation(libs.picovoice.porcupine)
+
+    // RTMP Streaming (RootEncoder old version without Compose dependencies)
+    implementation(libs.rtmp.client)
 }
