@@ -39,6 +39,12 @@ import com.turbometa.rayban.ui.theme.*
 import com.turbometa.rayban.utils.APIKeyManager
 import com.turbometa.rayban.viewmodels.WearablesViewModel
 import kotlinx.coroutines.launch
+import com.turbometa.rayban.managers.APIProviderManager
+import com.turbometa.rayban.managers.APIProvider
+import com.turbometa.rayban.managers.LiveAIProvider
+
+// Context for which provider's API key is missing
+private enum class ApiKeyContext { VisionAlibaba, VisionOpenRouter, LiveAlibaba, LiveGoogle, LiveOpenAI }
 
 @Composable
 fun HomeScreen(
@@ -55,11 +61,15 @@ fun HomeScreen(
     val uriHandler = LocalUriHandler.current
     val scope = rememberCoroutineScope()
     val apiKeyManager = remember { APIKeyManager.getInstance(context) }
+    val providerManager = remember { APIProviderManager.getInstance(context) }
     val connectionState by wearablesViewModel.connectionState.collectAsState()
     val hasActiveDevice by wearablesViewModel.hasActiveDevice.collectAsState()
+    val currentVisionProvider by providerManager.currentProvider.collectAsState()
+    val currentLiveProvider by providerManager.liveAIProvider.collectAsState()
 
     // API Key dialog state
     var showApiKeyDialog by remember { mutableStateOf(false) }
+    var apiKeyContext by remember { mutableStateOf<ApiKeyContext?>(null) }
     // Device not connected dialog state
     var showDeviceNotConnectedDialog by remember { mutableStateOf(false) }
     // Camera permission denied dialog state
@@ -115,17 +125,38 @@ fun HomeScreen(
                 )
             },
             text = {
-                Text(stringResource(R.string.api_key_required_desc))
+                val desc = when (apiKeyContext) {
+                    ApiKeyContext.VisionAlibaba, ApiKeyContext.LiveAlibaba -> stringResource(R.string.api_key_required_desc)
+                    ApiKeyContext.VisionOpenRouter -> "Please get your API Key from OpenRouter and configure it in Settings."
+                    ApiKeyContext.LiveGoogle -> "Please get your API Key from Google AI Studio and configure it in Settings."
+                    ApiKeyContext.LiveOpenAI -> "Please get your API Key from OpenAI and configure it in Settings."
+                    null -> stringResource(R.string.api_key_required_desc)
+                }
+                Text(desc)
             },
             confirmButton = {
                 Button(
                     onClick = {
                         showApiKeyDialog = false
-                        uriHandler.openUri("https://bailian.console.aliyun.com/?apiKey=1")
+                        val url = when (apiKeyContext) {
+                            ApiKeyContext.VisionAlibaba, ApiKeyContext.LiveAlibaba -> "https://bailian.console.aliyun.com/?apiKey=1"
+                            ApiKeyContext.VisionOpenRouter -> "https://openrouter.ai"
+                            ApiKeyContext.LiveGoogle -> "https://aistudio.google.com/apikey"
+                            ApiKeyContext.LiveOpenAI -> "https://platform.openai.com/api-keys"
+                            null -> "https://bailian.console.aliyun.com/?apiKey=1"
+                        }
+                        uriHandler.openUri(url)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Primary)
                 ) {
-                    Text(stringResource(R.string.apikey_get_key))
+                    val label = when (apiKeyContext) {
+                        ApiKeyContext.VisionAlibaba, ApiKeyContext.LiveAlibaba -> stringResource(R.string.apikey_get_alibaba)
+                        ApiKeyContext.VisionOpenRouter -> stringResource(R.string.apikey_get_openrouter)
+                        ApiKeyContext.LiveGoogle -> stringResource(R.string.apikey_get_google)
+                        ApiKeyContext.LiveOpenAI -> stringResource(R.string.apikey_get_openai)
+                        null -> stringResource(R.string.apikey_get_alibaba)
+                    }
+                    Text(label)
                 }
             },
             dismissButton = {
@@ -285,9 +316,14 @@ fun HomeScreen(
                                 showDeviceNotConnectedDialog = true
                                 return@FeatureCard
                             }
-                            // Then check API key
-                            val apiKey = apiKeyManager.getAPIKey()
-                            if (apiKey.isNullOrBlank()) {
+                            // Then check Live AI provider-specific API key
+                            val hasLiveKey = providerManager.hasLiveAIAPIKey(apiKeyManager)
+                            if (!hasLiveKey) {
+                                apiKeyContext = when (currentLiveProvider) {
+                                    LiveAIProvider.ALIBABA -> ApiKeyContext.LiveAlibaba
+                                    LiveAIProvider.GOOGLE -> ApiKeyContext.LiveGoogle
+                                    LiveAIProvider.OPENAI -> ApiKeyContext.LiveOpenAI
+                                }
                                 showApiKeyDialog = true
                                 return@FeatureCard
                             }
@@ -309,9 +345,13 @@ fun HomeScreen(
                                 showDeviceNotConnectedDialog = true
                                 return@FeatureCard
                             }
-                            // Check API key
-                            val apiKey = apiKeyManager.getAPIKey()
-                            if (apiKey.isNullOrBlank()) {
+                            // Check Vision provider-specific API key
+                            val hasVisionKey = providerManager.hasAPIKey(apiKeyManager)
+                            if (!hasVisionKey) {
+                                apiKeyContext = when (currentVisionProvider) {
+                                    APIProvider.ALIBABA -> ApiKeyContext.VisionAlibaba
+                                    APIProvider.OPENROUTER -> ApiKeyContext.VisionOpenRouter
+                                }
                                 showApiKeyDialog = true
                                 return@FeatureCard
                             }

@@ -106,36 +106,42 @@ enum class APIProvider(val id: String) {
 
 enum class LiveAIProvider(val id: String) {
     ALIBABA("alibaba"),
-    GOOGLE("google");
+    GOOGLE("google"),
+    OPENAI("openai");
 
     val displayName: String
         get() = when (this) {
             ALIBABA -> "阿里云 Qwen Omni"
             GOOGLE -> "Google Gemini Live"
+            OPENAI -> "OpenAI Realtime"
         }
 
     val displayNameEn: String
         get() = when (this) {
             ALIBABA -> "Alibaba Qwen Omni"
             GOOGLE -> "Google Gemini Live"
+            OPENAI -> "OpenAI Realtime"
         }
 
     val defaultModel: String
         get() = when (this) {
             ALIBABA -> "qwen3-omni-flash-realtime"
             GOOGLE -> "gemini-2.0-flash-exp"
+            OPENAI -> "gpt-4o-realtime-preview"
         }
 
     val apiKeyHelpURL: String
         get() = when (this) {
             ALIBABA -> "https://help.aliyun.com/zh/model-studio/get-api-key"
             GOOGLE -> "https://aistudio.google.com/apikey"
+            OPENAI -> "https://platform.openai.com/api-keys"
         }
 
     fun websocketURL(endpoint: AlibabaEndpoint = AlibabaEndpoint.BEIJING): String {
         return when (this) {
             ALIBABA -> endpoint.websocketURL
             GOOGLE -> "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+            OPENAI -> "wss://api.openai.com/v1/realtime"
         }
     }
 
@@ -381,6 +387,7 @@ class APIProviderManager private constructor(context: Context) {
         return when (_liveAIProvider.value) {
             LiveAIProvider.ALIBABA -> apiKeyManager.getAPIKey(APIProvider.ALIBABA, _alibabaEndpoint.value) ?: ""
             LiveAIProvider.GOOGLE -> apiKeyManager.getGoogleAPIKey() ?: ""
+            LiveAIProvider.OPENAI -> apiKeyManager.getOpenAIAPIKey() ?: ""
         }
     }
 

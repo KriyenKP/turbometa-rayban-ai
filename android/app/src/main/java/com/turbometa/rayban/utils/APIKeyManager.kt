@@ -25,7 +25,8 @@ class APIKeyManager(context: Context) {
         private const val KEY_ALIBABA_SINGAPORE = "alibaba-singapore-api-key"
         private const val KEY_OPENROUTER = "openrouter-api-key"
         private const val KEY_GOOGLE = "google-api-key"
-        private const val KEY_LEGACY = "qwen_api_key" // For backward compatibility
+        private const val KEY_OPENAI = "openai-api-key"
+        private const val KEY_LEGACY = "qwen_api_key"
 
         // Settings keys
         private const val KEY_AI_MODEL = "ai_model"
@@ -81,12 +82,16 @@ class APIKeyManager(context: Context) {
 
     fun saveAPIKey(key: String, provider: APIProvider, endpoint: AlibabaEndpoint? = null): Boolean {
         return try {
-            if (key.isBlank()) return false
+            if (key.isBlank()) {
+                Log.w(TAG, "Attempted to save blank API key for provider=$provider, endpoint=$endpoint")
+                return false
+            }
             val accountKey = accountName(provider, endpoint)
             sharedPreferences.edit().putString(accountKey, key).apply()
+            Log.i(TAG, "Saved API key for accountKey='$accountKey' (length=${key.length})")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to save API key: ${e.message}")
+            Log.e(TAG, "Failed to save API key for provider=$provider: ${e.message}")
             false
         }
     }
@@ -94,7 +99,9 @@ class APIKeyManager(context: Context) {
     fun getAPIKey(provider: APIProvider, endpoint: AlibabaEndpoint? = null): String? {
         return try {
             val accountKey = accountName(provider, endpoint)
-            sharedPreferences.getString(accountKey, null)
+            val key = sharedPreferences.getString(accountKey, null)
+            Log.d(TAG, "Getting API key for accountKey='$accountKey': ${if (key.isNullOrBlank()) "NOT FOUND" else "FOUND (length=${key.length})"}")
+            key
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get API key: ${e.message}")
             null
@@ -150,6 +157,42 @@ class APIKeyManager(context: Context) {
 
     fun hasGoogleAPIKey(): Boolean {
         return !getGoogleAPIKey().isNullOrBlank()
+    }
+
+    // MARK: - OpenAI API Key (for Live AI)
+
+    fun saveOpenAIAPIKey(key: String): Boolean {
+        return try {
+            if (key.isBlank()) return false
+            sharedPreferences.edit().putString(KEY_OPENAI, key).apply()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save OpenAI API key: ${e.message}")
+            false
+        }
+    }
+
+    fun getOpenAIAPIKey(): String? {
+        return try {
+            sharedPreferences.getString(KEY_OPENAI, null)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get OpenAI API key: ${e.message}")
+            null
+        }
+    }
+
+    fun deleteOpenAIAPIKey(): Boolean {
+        return try {
+            sharedPreferences.edit().remove(KEY_OPENAI).apply()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to delete OpenAI API key: ${e.message}")
+            false
+        }
+    }
+
+    fun hasOpenAIAPIKey(): Boolean {
+        return !getOpenAIAPIKey().isNullOrBlank()
     }
 
     // MARK: - Backward Compatible Methods (defaults to current provider)

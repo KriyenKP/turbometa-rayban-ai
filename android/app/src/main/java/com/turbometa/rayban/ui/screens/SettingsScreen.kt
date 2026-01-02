@@ -287,29 +287,48 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.RecordVoiceOver,
                     title = stringResource(R.string.settings_liveai_provider),
-                    subtitle = if (liveAIProvider == LiveAIProvider.ALIBABA)
-                        stringResource(R.string.liveai_alibaba)
-                    else
-                        stringResource(R.string.liveai_google),
+                    subtitle = when (liveAIProvider) {
+                        LiveAIProvider.ALIBABA -> stringResource(R.string.liveai_alibaba)
+                        LiveAIProvider.GOOGLE -> stringResource(R.string.liveai_google)
+                        LiveAIProvider.OPENAI -> stringResource(R.string.liveai_openai)
+                    },
                     onClick = { viewModel.showLiveAIProviderDialog() }
                 )
 
-                // Google API Key (only when Google selected for Live AI)
-                if (liveAIProvider == LiveAIProvider.GOOGLE) {
+                // Live AI API Key (Google/OpenAI)
+                if (liveAIProvider == LiveAIProvider.GOOGLE || liveAIProvider == LiveAIProvider.OPENAI) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
                     SettingsItem(
                         icon = Icons.Default.Key,
-                        title = stringResource(R.string.apikey_google),
-                        subtitle = if (hasGoogleKey)
-                            stringResource(R.string.settings_apikey_configured)
-                        else
-                            stringResource(R.string.settings_apikey_not_configured),
-                        subtitleColor = if (hasGoogleKey) Success else Error,
+                        title = if (liveAIProvider == LiveAIProvider.GOOGLE) stringResource(R.string.apikey_google) else stringResource(R.string.apikey_openai),
+                        subtitle = if (liveAIProvider == LiveAIProvider.GOOGLE) {
+                            if (hasGoogleKey) stringResource(R.string.settings_apikey_configured) else stringResource(R.string.settings_apikey_not_configured)
+                        } else {
+                            val hasOpenAIKey = viewModel.getMaskedKeyForType(SettingsViewModel.EditingKeyType.OPENAI).isNotEmpty()
+                            if (hasOpenAIKey) stringResource(R.string.settings_apikey_configured) else stringResource(R.string.settings_apikey_not_configured)
+                        },
+                        subtitleColor = if (liveAIProvider == LiveAIProvider.GOOGLE) {
+                            if (hasGoogleKey) Success else Error
+                        } else {
+                            val hasOpenAIKey = viewModel.getMaskedKeyForType(SettingsViewModel.EditingKeyType.OPENAI).isNotEmpty()
+                            if (hasOpenAIKey) Success else Error
+                        },
                         onClick = {
-                            viewModel.showApiKeyDialogForType(SettingsViewModel.EditingKeyType.GOOGLE)
+                            val type = if (liveAIProvider == LiveAIProvider.GOOGLE) SettingsViewModel.EditingKeyType.GOOGLE else SettingsViewModel.EditingKeyType.OPENAI
+                            viewModel.showApiKeyDialogForType(type)
                         }
                     )
                 }
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = AppSpacing.medium))
+
+                // Live AI Model Selection
+                SettingsItem(
+                    icon = Icons.Default.SmartToy,
+                    title = stringResource(R.string.liveai_model),
+                    subtitle = viewModel.getSelectedModelDisplayName(),
+                    onClick = { viewModel.showModelDialog() }
+                )
             }
 
             // Quick Vision / Picovoice Section
@@ -499,7 +518,8 @@ fun SettingsScreen(
             title = stringResource(R.string.settings_liveai_provider),
             options = listOf(
                 LiveAIProvider.ALIBABA to stringResource(R.string.liveai_alibaba),
-                LiveAIProvider.GOOGLE to stringResource(R.string.liveai_google)
+                LiveAIProvider.GOOGLE to stringResource(R.string.liveai_google),
+                LiveAIProvider.OPENAI to stringResource(R.string.liveai_openai)
             ),
             selected = liveAIProvider,
             onSelect = { viewModel.selectLiveAIProvider(it) },
@@ -522,6 +542,7 @@ fun SettingsScreen(
             SettingsViewModel.EditingKeyType.ALIBABA_SINGAPORE -> "https://help.aliyun.com/zh/model-studio/get-api-key"
             SettingsViewModel.EditingKeyType.OPENROUTER -> "https://openrouter.ai/keys"
             SettingsViewModel.EditingKeyType.GOOGLE -> "https://aistudio.google.com/apikey"
+            SettingsViewModel.EditingKeyType.OPENAI -> "https://platform.openai.com/api-keys"
             else -> null
         }
 
@@ -604,6 +625,50 @@ fun SettingsScreen(
             onSelect = { viewModel.selectAppLanguage(it) },
             onDismiss = { viewModel.hideAppLanguageDialog() }
         )
+    }
+
+    // Live AI Model Dialog
+    if (showModelDialog) {
+        val provider = liveAIProvider
+        val selected = selectedModel
+        val ctx = LocalContext.current
+        if (provider == LiveAIProvider.OPENAI) {
+            // Custom model entry for OpenAI
+            var customModel by remember { mutableStateOf(selected) }
+            AlertDialog(
+                onDismissRequest = { viewModel.hideModelDialog() },
+                title = { Text(text = stringResource(R.string.liveai_model), fontWeight = FontWeight.SemiBold) },
+                text = {
+                    Column {
+                        OutlinedTextField(
+                            value = customModel,
+                            onValueChange = { customModel = it },
+                            label = { Text(stringResource(R.string.enter_model_name)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        com.turbometa.rayban.managers.APIProviderManager.getInstance(ctx).setLiveAIModel(customModel.trim())
+                        viewModel.hideModelDialog()
+                    }) { Text(stringResource(R.string.save)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.hideModelDialog() }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
+        } else {
+            // Preset models for Alibaba/Google
+            ProviderSelectionDialog(
+                title = stringResource(R.string.liveai_model),
+                options = viewModel.getAvailableModels().map { it to it.displayName },
+                selected = viewModel.getAvailableModels().find { it.id == selected } ?: viewModel.getAvailableModels().first(),
+                onSelect = { viewModel.selectModel(it) },
+                onDismiss = { viewModel.hideModelDialog() }
+            )
+        }
     }
 }
 

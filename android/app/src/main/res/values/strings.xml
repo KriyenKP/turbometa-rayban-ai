@@ -199,7 +199,8 @@
     <string name="buy_me_coffee">Buy Me a Coffee</string>
     <string name="buy_me_coffee_url">https://buymeacoffee.com/turbo1123</string>
     <string name="delete_all">Delete All</string>
-    <string name="delete_confirm_message">Are you sure you want to delete all conversation records? This action cannot be undone.</string>
+    <string name="delete_confirm_message">Are you sure you want to delete all conversation records?
+        This action cannot be undone.</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
 
@@ -228,10 +229,12 @@
 
     <!-- Dialogs -->
     <string name="api_key_required">API Key Required</string>
-    <string name="api_key_required_desc">Please get your API Key from Alibaba Cloud Dashscope console and configure it in Settings.</string>
+    <string name="api_key_required_desc">Please get your API Key from Alibaba Cloud Dashscope
+        console and configure it in Settings.</string>
     <string name="go_to_settings">Go to Settings</string>
     <string name="device_required">Device Required</string>
-    <string name="device_required_desc">Please connect your Ray-Ban Meta glasses first before using this feature.</string>
+    <string name="device_required_desc">Please connect your Ray-Ban Meta glasses first before using
+        this feature.</string>
     <string name="connect_device">Connect Device</string>
     <string name="glasses_not_connected">Glasses not connected</string>
     <string name="glasses_not_connected_desc">Glasses not connected, please connect first</string>
@@ -256,12 +259,16 @@
     <string name="permission_microphone">Microphone permission is required for AI conversation</string>
     <string name="permission_bluetooth">Bluetooth permission is required to connect to glasses</string>
     <string name="permission_grant">Grant Permission</string>
-    <string name="permission_all_required">Please grant all permissions (Bluetooth, Network, Microphone)</string>
-    <string name="camera_permission_denied">Camera permission was denied. Please grant camera permission in the Meta AI app to use this feature.</string>
+    <string name="permission_all_required">Please grant all permissions (Bluetooth, Network,
+        Microphone)</string>
+    <string name="camera_permission_denied">Camera permission was denied. Please grant camera
+        permission in the Meta AI app to use this feature.</string>
 
     <!-- Video Quality -->
     <string name="video_quality">Video Quality</string>
     <string name="select_quality">Select Quality</string>
+    <string name="liveai_model">Live AI Model</string>
+    <string name="enter_model_name">Enter model name</string>
     <string name="quality_low">Low</string>
     <string name="quality_low_desc">Power saving mode, suitable for long use</string>
     <string name="quality_medium">Medium</string>
@@ -287,15 +294,27 @@
     <string name="endpoint_singapore">Singapore (International)</string>
     <string name="liveai_alibaba">Alibaba Qwen Omni</string>
     <string name="liveai_google">Google Gemini Live</string>
+    <string name="liveai_openai">OpenAI Realtime</string>
 
     <!-- API Key Types -->
     <string name="apikey_alibaba_beijing">Alibaba Beijing API Key</string>
     <string name="apikey_alibaba_singapore">Alibaba Singapore API Key</string>
     <string name="apikey_openrouter">OpenRouter API Key</string>
     <string name="apikey_google">Google AI Studio API Key</string>
+    <string name="apikey_openai">OpenAI API Key</string>
     <string name="apikey_get_alibaba">Get key from Alibaba Cloud</string>
     <string name="apikey_get_openrouter">Get key from OpenRouter</string>
     <string name="apikey_get_google">Get key from Google AI Studio</string>
+    <string name="apikey_get_openai">Get key from OpenAI</string>
+
+    <!-- Debug overlay -->
+    <string name="debug_logs">Debug Logs</string>
+    <string name="clear_logs">Clear</string>
+    <string name="request">Request</string>
+    <string name="response_handled">Response (handled)</string>
+    <string name="response_unhandled">Response (unhandled)</string>
+    <string name="debug_basic">Basic</string>
+    <string name="debug_verbose">Verbose</string>
 
     <!-- Picovoice / Quick Vision -->
     <string name="settings_quickvision">Quick Vision</string>
@@ -330,7 +349,8 @@
     <string name="quickvision_mode_health">Health</string>
     <string name="quickvision_mode_health_desc">Analyze food nutrition and health</string>
     <string name="quickvision_mode_blind">Accessibility</string>
-    <string name="quickvision_mode_blind_desc">Detailed environment description for visually impaired</string>
+    <string name="quickvision_mode_blind_desc">Detailed environment description for visually
+        impaired</string>
     <string name="quickvision_mode_reading">Reading</string>
     <string name="quickvision_mode_reading_desc">Read and recognize text in images</string>
     <string name="quickvision_mode_translate">Translate</string>
@@ -347,7 +367,8 @@
     <string name="liveai_target_language">Target Language</string>
     <string name="liveai_custom_prompt">Custom System Prompt</string>
     <string name="liveai_custom_hint">Enter your custom system prompt here…</string>
-    <string name="liveai_custom_footer">The system prompt defines the AI assistant\'s behavior and personality</string>
+    <string name="liveai_custom_footer">The system prompt defines the AI assistant\'s behavior and
+        personality</string>
     <string name="liveai_custom_default">You are a helpful AI assistant.</string>
 
     <!-- Live AI Modes -->
@@ -365,21 +386,69 @@
     <string name="liveai_mode_custom_desc">Use your own custom system prompt</string>
 
     <!-- AI Prompts (for services to use based on language) -->
-    <string name="prompt_quickvision">You are a smart glasses AI assistant. Please describe the image content concisely, suitable for voice announcement.\n\nRequirements:\n1. Describe the main content in 1-2 sentences\n2. Use natural, conversational language\n3. Don\'t use too many punctuation marks\n4. Keep the total under 50 words\n5. Describe directly, don\'t say \"in the image\" or \"I see\"</string>
-    <string name="prompt_liveai">You are a RayBan Meta smart glasses AI assistant.\n\n[IMPORTANT] Always respond in English.\n\nKeep your answers concise and conversational, like chatting with a friend. The user is wearing glasses and can see their surroundings, provide quick and useful suggestions based on what they see. Be direct and to the point.</string>
+    <string name="prompt_quickvision">You are a smart glasses AI assistant. Please describe the
+        image content concisely, suitable for voice announcement.\n\nRequirements:\n1. Describe the
+        main content in 1-2 sentences\n2. Use natural, conversational language\n3. Don\'t use too
+        many punctuation marks\n4. Keep the total under 50 words\n5. Describe directly, don\'t say
+        \"in the image\" or \"I see\"</string>
+    <string name="prompt_liveai">You are a RayBan Meta smart glasses AI assistant.\n\n[IMPORTANT]
+        Always respond in English.\n\nKeep your answers concise and conversational, like chatting
+        with a friend. The user is wearing glasses and can see their surroundings, provide quick and
+        useful suggestions based on what they see. Be direct and to the point.</string>
 
     <!-- Quick Vision Mode Prompts -->
-    <string name="prompt_quickvision_standard">You are a smart glasses AI assistant. Please describe the image content concisely, suitable for voice announcement.\n\nRequirements:\n1. Describe the main content in 1-2 sentences\n2. Use natural, conversational language\n3. Don\'t use too many punctuation marks\n4. Keep the total under 50 words\n5. Describe directly, don\'t say \"in the image\" or \"I see\"</string>
-    <string name="prompt_quickvision_health">Analyze the health aspects of this food/beverage. Provide scientific analysis from these perspectives:\n1. Is the nutrition balanced?\n2. Additives and preservatives\n3. Sugar/salt/fat content\n4. Potential health effects\n5. Health recommendations\n\nAnswer concisely, suitable for voice, under 100 words.</string>
-    <string name="prompt_quickvision_blind">Describe the environment in detail for a visually impaired user, including:\n1. Objects and people around\n2. Approximate distances and directions\n3. Obstacles or dangers\n4. Overall atmosphere (indoor/outdoor, lighting)\n5. Important details\n\nBe clear and specific, use directional words (ahead, left side, etc.), under 80 words.</string>
-    <string name="prompt_quickvision_reading">Recognize and read the text in the image. Requirements:\n1. Accurately identify all visible text\n2. Organize content in reading order\n3. If it\'s a menu/sign, describe its type\n4. If text is unclear, mention it\n\nRead the text directly without extra explanation.</string>
-    <string name="prompt_quickvision_translate">Recognize the text in the image and translate it to {LANGUAGE}. Requirements:\n1. Accurately identify all visible text\n2. Translation should be accurate and natural\n3. Translate multiple paragraphs separately\n4. Just give the translation, no need to show original\n\nSuitable for voice, under 100 words.</string>
-    <string name="prompt_quickvision_encyclopedia">Identify the object, building, artwork, or creature in the image and provide encyclopedia knowledge. Include:\n1. Name and classification\n2. Historical background or origin\n3. Interesting facts\n4. Cultural significance\n\nBe engaging like a museum guide, suitable for voice, under 100 words.</string>
+    <string name="prompt_quickvision_standard">You are a smart glasses AI assistant. Please describe
+        the image content concisely, suitable for voice announcement.\n\nRequirements:\n1. Describe
+        the main content in 1-2 sentences\n2. Use natural, conversational language\n3. Don\'t use
+        too many punctuation marks\n4. Keep the total under 50 words\n5. Describe directly, don\'t
+        say \"in the image\" or \"I see\"</string>
+    <string name="prompt_quickvision_health">Analyze the health aspects of this food/beverage.
+        Provide scientific analysis from these perspectives:\n1. Is the nutrition balanced?\n2.
+        Additives and preservatives\n3. Sugar/salt/fat content\n4. Potential health effects\n5.
+        Health recommendations\n\nAnswer concisely, suitable for voice, under 100 words.</string>
+    <string name="prompt_quickvision_blind">Describe the environment in detail for a visually
+        impaired user, including:\n1. Objects and people around\n2. Approximate distances and
+        directions\n3. Obstacles or dangers\n4. Overall atmosphere (indoor/outdoor, lighting)\n5.
+        Important details\n\nBe clear and specific, use directional words (ahead, left side, etc.),
+        under 80 words.</string>
+    <string name="prompt_quickvision_reading">Recognize and read the text in the image.
+        Requirements:\n1. Accurately identify all visible text\n2. Organize content in reading
+        order\n3. If it\'s a menu/sign, describe its type\n4. If text is unclear, mention it\n\nRead
+        the text directly without extra explanation.</string>
+    <string name="prompt_quickvision_translate">Recognize the text in the image and translate it to
+        {LANGUAGE}. Requirements:\n1. Accurately identify all visible text\n2. Translation should be
+        accurate and natural\n3. Translate multiple paragraphs separately\n4. Just give the
+        translation, no need to show original\n\nSuitable for voice, under 100 words.</string>
+    <string name="prompt_quickvision_encyclopedia">Identify the object, building, artwork, or
+        creature in the image and provide encyclopedia knowledge. Include:\n1. Name and
+        classification\n2. Historical background or origin\n3. Interesting facts\n4. Cultural
+        significance\n\nBe engaging like a museum guide, suitable for voice, under 100 words.</string>
 
     <!-- Live AI Mode Prompts -->
-    <string name="prompt_liveai_standard">You are a RayBan Meta smart glasses AI assistant.\n\n[IMPORTANT] Always respond in English.\n\nKeep your answers concise and conversational, like chatting with a friend. The user is wearing glasses and can see their surroundings, provide quick and useful suggestions based on what they see. Be direct and to the point.</string>
-    <string name="prompt_liveai_museum">You are a professional museum guide AI assistant.\n\n[IMPORTANT] Always respond in English.\n\nWhen the user looks at an exhibit, provide:\n1. Name and basic information\n2. Historical background and cultural significance\n3. Interesting stories or facts\n4. Connections to other exhibits\n\nBe knowledgeable and engaging, like a professional guide.</string>
-    <string name="prompt_liveai_blind">You are an AI assistant for visually impaired users wearing smart glasses.\n\n[IMPORTANT] Always respond in English.\n\nYour task is to help users understand their surroundings:\n1. Describe objects, people, and environment in detail\n2. Use clear directional words (ahead, left, behind right, etc.)\n3. Point out obstacles or dangers\n4. Read signs, menus, and other text\n5. Provide safe, practical navigation advice\n\nSpeak clearly and prioritize the most important information.</string>
-    <string name="prompt_liveai_reading">You are a reading assistant AI.\n\n[IMPORTANT] Always respond in English.\n\nYour task is to help users read visible text:\n1. Accurately recognize and read all visible text\n2. Organize content in correct reading order\n3. For documents, explain the structure\n4. For foreign languages, read first then translate\n\nSpeak at moderate pace, clearly, like a professional reader.</string>
-    <string name="prompt_liveai_translate">You are a real-time translation AI assistant.\n\n[IMPORTANT] Translation results must be in {LANGUAGE}.\n\nYour task is to help users understand foreign language content:\n1. Recognize text in the image\n2. Translate to {LANGUAGE}\n3. For menus or signs, explain their purpose\n4. Provide simple explanations for technical terms\n\nTranslations should be accurate, natural, and idiomatic.</string>
+    <string name="prompt_liveai_standard">You are a RayBan Meta smart glasses AI
+        assistant.\n\n[IMPORTANT] Always respond in English.\n\nKeep your answers concise and
+        conversational, like chatting with a friend. The user is wearing glasses and can see their
+        surroundings, provide quick and useful suggestions based on what they see. Be direct and to
+        the point.</string>
+    <string name="prompt_liveai_museum">You are a professional museum guide AI
+        assistant.\n\n[IMPORTANT] Always respond in English.\n\nWhen the user looks at an exhibit,
+        provide:\n1. Name and basic information\n2. Historical background and cultural
+        significance\n3. Interesting stories or facts\n4. Connections to other exhibits\n\nBe
+        knowledgeable and engaging, like a professional guide.</string>
+    <string name="prompt_liveai_blind">You are an AI assistant for visually impaired users wearing
+        smart glasses.\n\n[IMPORTANT] Always respond in English.\n\nYour task is to help users
+        understand their surroundings:\n1. Describe objects, people, and environment in detail\n2.
+        Use clear directional words (ahead, left, behind right, etc.)\n3. Point out obstacles or
+        dangers\n4. Read signs, menus, and other text\n5. Provide safe, practical navigation
+        advice\n\nSpeak clearly and prioritize the most important information.</string>
+    <string name="prompt_liveai_reading">You are a reading assistant AI.\n\n[IMPORTANT] Always
+        respond in English.\n\nYour task is to help users read visible text:\n1. Accurately
+        recognize and read all visible text\n2. Organize content in correct reading order\n3. For
+        documents, explain the structure\n4. For foreign languages, read first then
+        translate\n\nSpeak at moderate pace, clearly, like a professional reader.</string>
+    <string name="prompt_liveai_translate">You are a real-time translation AI
+        assistant.\n\n[IMPORTANT] Translation results must be in {LANGUAGE}.\n\nYour task is to help
+        users understand foreign language content:\n1. Recognize text in the image\n2. Translate to
+        {LANGUAGE}\n3. For menus or signs, explain their purpose\n4. Provide simple explanations for
+        technical terms\n\nTranslations should be accurate, natural, and idiomatic.</string>
 </resources>

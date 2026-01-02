@@ -6,24 +6,23 @@ import android.util.Base64
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.turbometa.rayban.managers.AlibabaEndpoint
 import com.turbometa.rayban.managers.APIProvider
 import com.turbometa.rayban.managers.APIProviderManager
+import com.turbometa.rayban.managers.AlibabaEndpoint
 import com.turbometa.rayban.managers.QuickVisionModeManager
 import com.turbometa.rayban.utils.APIKeyManager
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.io.ByteArrayOutputStream
-import java.util.concurrent.TimeUnit
 
 /**
- * Vision API Service
- * Supports multiple providers: Alibaba Cloud Dashscope (Beijing/Singapore), OpenRouter
- * 1:1 port from iOS VisionAPIConfig + QuickVisionService
+ * Vision API Service Supports multiple providers: Alibaba Cloud Dashscope (Beijing/Singapore),
+ * OpenRouter 1:1 port from iOS VisionAPIConfig + QuickVisionService
  */
 class VisionAPIService(
     private val apiKeyManager: APIKeyManager,
@@ -54,24 +53,46 @@ class VisionAPIService(
     // MARK: - Configuration
 
     private val currentProvider: APIProvider
-        get() = providerManager.currentProvider.value
+        get() {
+            val provider = providerManager.currentProvider.value
+            Log.d(TAG, "Current provider: $provider")
+            return provider
+        }
 
     private val alibabaEndpoint: AlibabaEndpoint
         get() = providerManager.alibabaEndpoint.value
 
     private val baseURL: String
-        get() = when (currentProvider) {
-            APIProvider.ALIBABA -> when (alibabaEndpoint) {
-                AlibabaEndpoint.BEIJING -> ALIBABA_BEIJING_URL
-                AlibabaEndpoint.SINGAPORE -> ALIBABA_SINGAPORE_URL
-            }
+        get() = when (currentProvider) 
+        {
+            APIProvider.ALIBABA ->
+                    when (alibabaEndpoint) {
+                        AlibabaEndpoint.BEIJING -> ALIBABA_BEIJING_URL
+                        AlibabaEndpoint.SINGAPORE -> ALIBABA_SINGAPORE_URL
+                    }
             APIProvider.OPENROUTER -> OPENROUTER_URL
         }
 
     private val apiKey: String?
-        get() = when (currentProvider) {
-            APIProvider.ALIBABA -> apiKeyManager.getAPIKey(APIProvider.ALIBABA, alibabaEndpoint)
-            APIProvider.OPENROUTER -> apiKeyManager.getAPIKey(APIProvider.OPENROUTER)
+        get() {
+            val key =
+                when (currentProvider) {
+                    APIProvider.ALIBABA -> {
+                        val k = apiKeyManager.getAPIKey(APIProvider.ALIBABA, alibabaEndpoint)
+                        k
+                    }
+                    APIProvider.OPENROUTER -> {
+                        val k = apiKeyManager.getAPIKey(APIProvider.OPENROUTER)
+                        if (k.isNullOrBlank()) {
+                            Log.e(
+                                    TAG,
+                                    "OpenRouter API key is null or blank. Please set it in Settings."
+                            )
+                        }
+                        k
+                    }
+                }
+            return key
         }
 
     private val model: String
@@ -79,58 +100,65 @@ class VisionAPIService(
 
     // MARK: - Analyze Image
 
-    suspend fun analyzeImage(image: Bitmap, prompt: String): Result<String> = withContext(Dispatchers.IO) {
-        try {
-            val key = apiKey
-            if (key.isNullOrBlank()) {
-                return@withContext Result.failure(VisionAPIError.NoAPIKey)
+    suspend fun analyzeImage(image: Bitmap, prompt: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                val key = apiKey
+                if (key.isNullOrBlank()) {
+                    val errorMsg = "No API key found for provider: $currentProvider. Please set your API key in Settings."
+                    Log.e(TAG, errorMsg)
+                    return@withContext Result.failure(VisionAPIError.APIError(errorMsg))
+                }
+
+                val base64Image = encodeImageToBase64(image)
+                val requestBody = buildRequestBody(base64Image, prompt)
+                val url = "$baseURL/chat/completions"
+
+                val requestBuilder =Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $key")
+                    .addHeader("Content-Type", "application/json")
+
+                // Add OpenRouter-specific headers
+                if (currentProvider == APIProvider.OPENROUTER) {
+                    requestBuilder.addHeader("HTTP-Referer", "https://turbometa.app")
+                    requestBuilder.addHeader("X-Title", "TurboMeta")
+                }
+
+                val request = requestBuilder
+                    .post(requestBody.toRequestBody("application/json".toMediaType()))   
+                    .build()
+
+                val response = client.newCall(request).execute()
+                val responseBody = response.body?.string()
+
+                if (!response.isSuccessful) {
+                    val errorDetail =
+                            when (response.code) {
+                                401 ->
+                                        "Authentication failed (401). Please check your ${currentProvider.name} API key in Settings. Error: $responseBody"
+                                else -> "API Error: ${response.code} - $responseBody"
+                            }
+                    Log.e(TAG, errorDetail)
+                    Log.e(TAG, "Response headers: ${response.headers}")
+                    return@withContext Result.failure(VisionAPIError.APIError(errorDetail))
+                }
+
+                if (responseBody.isNullOrEmpty()) {
+                    return@withContext Result.failure(VisionAPIError.EmptyResponse)
+                }
+
+                val result = parseResponse(responseBody)
+                if (result.isNullOrEmpty()) {
+                    return@withContext Result.failure(VisionAPIError.InvalidResponse)
+                }
+
+                Result.success(result)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error analyzing image: ${e.message}")
+                Result.failure(e)
             }
-
-            Log.d(TAG, "Analyzing image with provider: $currentProvider, model: $model")
-
-            val base64Image = encodeImageToBase64(image)
-            val requestBody = buildRequestBody(base64Image, prompt)
-            val url = "$baseURL/chat/completions"
-
-            val requestBuilder = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer $key")
-                .addHeader("Content-Type", "application/json")
-
-            // Add OpenRouter-specific headers
-            if (currentProvider == APIProvider.OPENROUTER) {
-                requestBuilder.addHeader("HTTP-Referer", "https://turbometa.app")
-                requestBuilder.addHeader("X-Title", "TurboMeta")
-            }
-
-            val request = requestBuilder
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            val responseBody = response.body?.string()
-
-            if (!response.isSuccessful) {
-                Log.e(TAG, "API Error: ${response.code} - $responseBody")
-                return@withContext Result.failure(VisionAPIError.APIError("API Error: ${response.code} - $responseBody"))
-            }
-
-            if (responseBody.isNullOrEmpty()) {
-                return@withContext Result.failure(VisionAPIError.EmptyResponse)
-            }
-
-            val result = parseResponse(responseBody)
-            if (result.isNullOrEmpty()) {
-                return@withContext Result.failure(VisionAPIError.InvalidResponse)
-            }
-
-            Log.d(TAG, "Analysis successful")
-            Result.success(result)
-        } catch (e: Exception) {
-            Log.e(TAG, "Error analyzing image: ${e.message}")
-            Result.failure(e)
         }
-    }
 
     // MARK: - Quick Vision (for background recognition)
     // Uses QuickVisionModeManager to get the prompt based on selected mode
@@ -141,17 +169,14 @@ class VisionAPIService(
             val modeManager = QuickVisionModeManager.getInstance(it)
             val currentMode = modeManager.currentMode.value
             val modePrompt = modeManager.getPrompt()
-            Log.d(TAG, "QuickVision using mode: ${currentMode.id}, prompt length: ${modePrompt.length}")
-            Log.d(TAG, "QuickVision prompt: ${modePrompt.take(100)}...")
             modePrompt
-        } ?: getQuickVisionPrompt(language)
+        }
+        ?: getQuickVisionPrompt(language)
 
         return analyzeImage(image, prompt)
     }
 
-    /**
-     * Get localized Quick Vision prompt matching iOS implementation
-     */
+    /** Get localized Quick Vision prompt matching iOS implementation */
     private fun getQuickVisionPrompt(language: String): String {
         return when (language) {
             "zh-CN" -> """
@@ -208,29 +233,25 @@ class VisionAPIService(
     }
 
     private fun buildRequestBody(base64Image: String, prompt: String): String {
-        val messages = listOf(
+        val messages =listOf(
             mapOf(
                 "role" to "user",
-                "content" to listOf(
+                "content" to
+                listOf(
                     mapOf(
                         "type" to "image_url",
-                        "image_url" to mapOf(
-                            "url" to "data:image/jpeg;base64,$base64Image"
+                        "image_url" to
+                        mapOf(
+                            "url" to
+                            "data:image/jpeg;base64,$base64Image"
                         )
                     ),
-                    mapOf(
-                        "type" to "text",
-                        "text" to prompt
-                    )
+                    mapOf("type" to "text", "text" to prompt)
                 )
             )
         )
 
-        val request = mapOf(
-            "model" to model,
-            "messages" to messages,
-            "max_tokens" to 2000
-        )
+        val request = mapOf("model" to model, "messages" to messages, "max_tokens" to 2000)
 
         return gson.toJson(request)
     }

@@ -136,7 +136,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         ALIBABA_BEIJING,
         ALIBABA_SINGAPORE,
         OPENROUTER,
-        GOOGLE
+        GOOGLE,
+        OPENAI
     }
 
     init {
@@ -255,6 +256,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             EditingKeyType.ALIBABA_SINGAPORE -> apiKeyManager.saveAPIKey(trimmedKey, APIProvider.ALIBABA, AlibabaEndpoint.SINGAPORE)
             EditingKeyType.OPENROUTER -> apiKeyManager.saveAPIKey(trimmedKey, APIProvider.OPENROUTER)
             EditingKeyType.GOOGLE -> apiKeyManager.saveGoogleAPIKey(trimmedKey)
+            EditingKeyType.OPENAI -> apiKeyManager.saveOpenAIAPIKey(trimmedKey)
             null -> apiKeyManager.saveAPIKey(trimmedKey)
         }
 
@@ -275,6 +277,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             EditingKeyType.ALIBABA_SINGAPORE -> apiKeyManager.deleteAPIKey(APIProvider.ALIBABA, AlibabaEndpoint.SINGAPORE)
             EditingKeyType.OPENROUTER -> apiKeyManager.deleteAPIKey(APIProvider.OPENROUTER)
             EditingKeyType.GOOGLE -> apiKeyManager.deleteGoogleAPIKey()
+            EditingKeyType.OPENAI -> apiKeyManager.deleteOpenAIAPIKey()
             null -> apiKeyManager.deleteAPIKey()
         }
 
@@ -303,6 +306,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             EditingKeyType.ALIBABA_SINGAPORE -> apiKeyManager.getAPIKey(APIProvider.ALIBABA, AlibabaEndpoint.SINGAPORE)
             EditingKeyType.OPENROUTER -> apiKeyManager.getAPIKey(APIProvider.OPENROUTER)
             EditingKeyType.GOOGLE -> apiKeyManager.getGoogleAPIKey()
+            EditingKeyType.OPENAI -> apiKeyManager.getOpenAIAPIKey()
         } ?: return ""
         if (key.length <= 8) return "****"
         return "${key.take(4)}****${key.takeLast(4)}"
@@ -314,6 +318,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             EditingKeyType.ALIBABA_SINGAPORE -> apiKeyManager.getAPIKey(APIProvider.ALIBABA, AlibabaEndpoint.SINGAPORE)
             EditingKeyType.OPENROUTER -> apiKeyManager.getAPIKey(APIProvider.OPENROUTER)
             EditingKeyType.GOOGLE -> apiKeyManager.getGoogleAPIKey()
+            EditingKeyType.OPENAI -> apiKeyManager.getOpenAIAPIKey()
         } ?: ""
     }
 
@@ -506,6 +511,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             EditingKeyType.ALIBABA_SINGAPORE -> apiKeyManager.getAPIKey(APIProvider.ALIBABA, AlibabaEndpoint.SINGAPORE)
             EditingKeyType.OPENROUTER -> apiKeyManager.getAPIKey(APIProvider.OPENROUTER)
             EditingKeyType.GOOGLE -> apiKeyManager.getGoogleAPIKey()
+            EditingKeyType.OPENAI -> apiKeyManager.getOpenAIAPIKey()
             null -> apiKeyManager.getAPIKey()
         } ?: ""
     }

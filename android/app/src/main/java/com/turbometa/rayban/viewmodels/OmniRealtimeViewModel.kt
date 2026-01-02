@@ -12,6 +12,7 @@ import com.turbometa.rayban.models.ConversationMessage
 import com.turbometa.rayban.models.ConversationRecord
 import com.turbometa.rayban.models.MessageRole
 import com.turbometa.rayban.services.GeminiLiveService
+import com.turbometa.rayban.services.OpenAIRealtimeService
 import com.turbometa.rayban.services.OmniRealtimeService
 import com.turbometa.rayban.utils.APIKeyManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +39,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
     // Services
     private var omniService: OmniRealtimeService? = null
     private var geminiService: GeminiLiveService? = null
+    private var openAIService: OpenAIRealtimeService? = null
 
     // Current provider
     private val _currentProvider = MutableStateFlow(providerManager.liveAIProvider.value)
@@ -115,6 +117,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         when (provider) {
             LiveAIProvider.ALIBABA -> initializeOmniService(apiKey, language)
             LiveAIProvider.GOOGLE -> initializeGeminiService(apiKey, language)
+            LiveAIProvider.OPENAI -> initializeOpenAIService(apiKey, language)
         }
     }
 
@@ -167,6 +170,8 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         // Clean up Omni service if exists
         omniService?.disconnect()
         omniService = null
+        openAIService?.disconnect()
+        openAIService = null
 
         val model = providerManager.liveAIModel.value
 
@@ -210,6 +215,69 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         }
 
         observeGeminiServiceStates()
+    }
+
+    private fun initializeOpenAIService(apiKey: String, language: String) {
+        // Clean up other services if exist
+        omniService?.disconnect(); omniService = null
+        geminiService?.disconnect(); geminiService = null
+
+        val model = providerManager.liveAIModel.value
+
+        openAIService = OpenAIRealtimeService(apiKey, model, language, getApplication()).apply {
+            onTranscriptDelta = { delta ->
+                _currentTranscript.value += delta
+            }
+            onTranscriptDone = { transcript ->
+                if (transcript.isNotBlank()) {
+                    addAssistantMessage(_currentTranscript.value.ifBlank { transcript })
+                }
+                _currentTranscript.value = ""
+                _viewState.value = ViewState.Connected
+            }
+            onUserTranscript = { transcript ->
+                if (transcript.isNotBlank()) {
+                    _userTranscript.value = transcript
+                    addUserMessage(transcript)
+                }
+            }
+            onSpeechStarted = { _viewState.value = ViewState.Recording }
+            onSpeechStopped = { _viewState.value = ViewState.Processing }
+            onError = { error ->
+                _errorMessage.value = error
+                _viewState.value = ViewState.Error(error)
+            }
+        }
+
+        observeOpenAIServiceStates()
+    }
+
+    private fun observeOpenAIServiceStates() {
+        viewModelScope.launch {
+            openAIService?.isConnected?.collect { connected ->
+                _isConnected.value = connected
+                if (connected && _viewState.value == ViewState.Connecting) {
+                    _viewState.value = ViewState.Connected
+                } else if (!connected && _viewState.value != ViewState.Idle) {
+                    _viewState.value = ViewState.Idle
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            openAIService?.isRecording?.collect { recording ->
+                _isRecording.value = recording
+            }
+        }
+
+        viewModelScope.launch {
+            openAIService?.isSpeaking?.collect { speaking ->
+                _isSpeaking.value = speaking
+                if (speaking) {
+                    _viewState.value = ViewState.Speaking
+                }
+            }
+        }
     }
 
     private fun observeOmniServiceStates() {
@@ -279,6 +347,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
             when (_currentProvider.value) {
                 LiveAIProvider.ALIBABA -> omniService?.connect()
                 LiveAIProvider.GOOGLE -> geminiService?.connect()
+                LiveAIProvider.OPENAI -> openAIService?.connect()
             }
         }
     }
@@ -288,6 +357,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
             saveCurrentConversation()
             omniService?.disconnect()
             geminiService?.disconnect()
+            openAIService?.disconnect()
             _viewState.value = ViewState.Idle
             _isConnected.value = false
             _messages.value = emptyList()
@@ -307,12 +377,14 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
             when (_currentProvider.value) {
                 LiveAIProvider.ALIBABA -> omniService?.updateVideoFrame(frame)
                 LiveAIProvider.GOOGLE -> geminiService?.updateVideoFrame(frame)
+                LiveAIProvider.OPENAI -> openAIService?.updateVideoFrame(frame)
             }
         }
 
         when (_currentProvider.value) {
             LiveAIProvider.ALIBABA -> omniService?.startRecording()
             LiveAIProvider.GOOGLE -> geminiService?.startRecording()
+            LiveAIProvider.OPENAI -> openAIService?.startRecording()
         }
         _viewState.value = ViewState.Recording
     }
@@ -321,6 +393,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         when (_currentProvider.value) {
             LiveAIProvider.ALIBABA -> omniService?.stopRecording()
             LiveAIProvider.GOOGLE -> geminiService?.stopRecording()
+            LiveAIProvider.OPENAI -> openAIService?.stopRecording()
         }
         if (_viewState.value == ViewState.Recording) {
             _viewState.value = ViewState.Processing
@@ -332,6 +405,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         when (_currentProvider.value) {
             LiveAIProvider.ALIBABA -> omniService?.updateVideoFrame(frame)
             LiveAIProvider.GOOGLE -> geminiService?.updateVideoFrame(frame)
+            LiveAIProvider.OPENAI -> openAIService?.updateVideoFrame(frame)
         }
     }
 
@@ -339,6 +413,7 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         when (_currentProvider.value) {
             LiveAIProvider.ALIBABA -> omniService?.updateVideoFrame(image)
             LiveAIProvider.GOOGLE -> geminiService?.sendImageInput(image)
+            LiveAIProvider.OPENAI -> openAIService?.sendImageInput(image)
         }
     }
 
@@ -397,5 +472,6 @@ class OmniRealtimeViewModel(application: Application) : AndroidViewModel(applica
         saveCurrentConversation()
         omniService?.disconnect()
         geminiService?.disconnect()
+        openAIService?.disconnect()
     }
 }
